@@ -1,0 +1,436 @@
+.speaking-container {
+  display: flex;
+  height: 100vh;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f0f4f8;
+  flex-direction: row; /* Default layout */
+  position: relative;
+}
+
+.topic-sidebar {
+  width: 25%;
+  padding: 20px;
+  background-color: #ffffff;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
+}
+
+.topic-sidebar h2 {
+  font-size: 20px;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.topic-sidebar .add-btn {
+  background-color: #28a745;
+  color: white;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 20px;
+  transition: background-color 0.3s;
+
+}
+
+.topic-sidebar .add-btn:hover {
+  background-color: #218838;
+}
+
+.topic-sidebar ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.topic-sidebar li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background-color: #f7f9fb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.topic-sidebar li.active {
+  background-color: #d0ebff;
+  font-weight: bold;
+}
+
+.topic-sidebar li:hover {
+  background-color: #e2efff;
+}
+
+.delete-btn {
+  background-color: #dc3545;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-left: 10px;
+  font-size: 14px;
+}
+
+.delete-btn:hover {
+  background-color: #c82333;
+}
+
+.topic-detail {
+  flex: 1;
+  padding: 30px 40px;
+  overflow-y: auto;
+}
+
+.topic-detail h2 {
+  font-size: 24px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: #333;
+}
+
+.add-question-btn {
+  background-color: #007bff;
+  color: white;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+ 
+}
+.add-topic {
+  background-color: #007bff;
+  color: white;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  width: 150px;
+}
+.add-question-btn-save {
+  background-color: #007bff;
+  color: white;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  width: 80px;
+}
+
+
+.add-question-btn:hover {
+  background-color: #0069d9;
+}
+
+
+.question-list {
+  list-style: decimal inside;
+  margin-top: 10px;
+  padding-left: 0;
+}
+
+.question-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid #ccc;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+}
+
+.question-list li button {
+  position: absolute; /* Đặt nút ra ngoài cùng bên phải */
+  right: 10px; /* Điều chỉnh khoảng cách từ mép phải */
+  margin-left: 10px; /* Khoảng cách giữa các nút */
+}
+
+.topic-detail p {
+  font-size: 18px;
+  font-weight: 600;
+  color: #555;
+  background-color: #fff3cd;
+  padding: 16px 20px;
+  border-left: 6px solid #ffc107;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: background-color 0.3s;
+}
+
+/* Các nút sửa và xóa căn sang bên phải */
+.edit-delete-btn-container {
+  display: flex;
+  justify-content: flex-end; /* Điều chỉnh các nút nằm bên phải */
+  gap :10px
+}
+
+.edit-delete-btn {
+  background-color: #ff5722; /* Màu nền cho nút sửa/xóa */
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.edit-delete-btn.edit {
+  background-color: #03a9f4; /* Màu nền cho nút sửa */
+  margin-right: 60px;
+}
+
+
+.edit-delete-btn.delete {
+  background-color: #eae0df; /* Màu nền cho nút xóa */
+}
+.edit-topic {
+  background-color: #03a9f4; /* Màu nền cho nút sửa */
+  margin-right: px;
+}
+.delete-topic {
+   background-color: #eae0df;
+}
+
+/* Responsive styles */
+@media screen and (max-width: 768px) {
+  .speaking-container {
+    flex-direction: column; /* Stack sidebar and detail */
+  }
+
+  .topic-sidebar {
+    width: 100%;
+    box-shadow: none;
+    padding: 10px;
+  }
+
+  .topic-detail {
+    padding: 20px;
+  }
+
+  .topic-sidebar h2 {
+    font-size: 18px;
+  }
+
+  .topic-detail h2 {
+    font-size: 20px;
+  }
+
+  .topic-sidebar ul {
+    margin-top: 20px;
+  }
+
+  .question-list li {
+    font-size: 14px;
+    padding: 6px 0;
+  }
+
+  .add-question-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .delete-btn, .edit-delete-btn {
+    font-size: 12px;
+    padding: 2px 6px;
+  }
+
+  .edit-delete-btn-container {
+    gap: 5px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .topic-sidebar {
+    padding: 5px;
+  }
+
+  .topic-detail {
+    padding: 15px;
+  }
+
+  .topic-sidebar h2 {
+    font-size: 16px;
+  }
+
+  .topic-detail h2 {
+    font-size: 18px;
+  }
+
+  .add-question-btn {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  .delete-btn, .edit-delete-btn {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
+
+  .question-list li {
+    font-size: 12px;
+    padding: 4px 0;
+  }
+}
+.confirm-delete-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  padding: 20px 30px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  width: 300px;
+  text-align: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.confirm-delete-modal p {
+  font-size: 16px;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.confirm-delete-modal button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 0 10px;
+  transition: background-color 0.3s;
+}
+
+.confirm-delete-modal button:hover {
+  background-color: #0056b3;
+}
+
+.confirm-delete-modal button:last-child {
+  background-color: #dc3545;
+}
+
+.confirm-delete-modal button:last-child:hover {
+  background-color: #c82333;
+}
+
+/* Animation for fade-in */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.question-delete-selected {
+  font-weight: bold;
+  color: red;
+}
+.speaking-container.disable-all {
+  pointer-events: none; /* Vô hiệu hóa mọi sự kiện chuột */
+ /* Giảm độ sáng để hiển thị rõ hơn phần xác nhận xóa */
+}
+
+.speaking-container .confirm-delete-modal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10; /* Đảm bảo modal luôn hiển thị trên cùng */
+  
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+  pointer-events: auto;
+}
+
+.speaking-container .confirm-delete-modal button {
+  margin: 10px;
+}
+
+.btn-modal-save{
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 0 10px;
+  transition: background-color 0.3s;
+}
+
+.btn-modal-cancel{
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 0 10px;
+  transition: background-color 0.3s;
+}
+.confirm-delete-modal,
+.edit-topic-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 24px;
+  border-radius: 8px;
+  min-width: 300px;
+  text-align: center;
+}
+
+.confirm-btn {
+  background-color: #d9534f;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+}
+
+.cancel-btn {
+  background-color: #5bc0de;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+}
+
+.edit-topic-modal input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.edit-topic-modal input:focus {
+  border-color: #007bff;
+  outline: none;
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}

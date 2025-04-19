@@ -1,0 +1,224 @@
+body, html {
+    margin: 0;
+    overflow: hidden;
+  }
+  .avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  
+  .avatar-container {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    gap: 10px;
+  }
+  
+  .avatar-text {
+    font-size: 25px;
+    line-height: 50px; /* khớp với chiều cao avatar */
+    font-weight: bold;
+    color: #e9e65a;
+    margin-left: 20px;
+  }
+  
+ 
+  
+  .home-container {
+    display: flex;
+    min-height: 100vh;
+    background: linear-gradient(to bottom, #531919 70%, #000000 100%);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    box-sizing: border-box;
+    position: relative; /* Để định vị các họa tiết */
+  }
+  
+  .maple-leaf {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 200px;
+    height: auto;
+    z-index: 10;
+    transform: rotate(-15deg);
+    opacity: 0.95;
+    pointer-events: none;
+    transition: width 0.3s ease;
+  }
+  
+  
+  
+  
+  .sidebar {
+    width: auto;
+    background-color: transparent;
+    color: #f0f8ff;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+  }
+  
+  .avatar {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #ddd;
+  }
+  
+  .main-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+    background-color: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(8px);
+    width: 80%;
+    max-width: 700px;
+  }
+  
+  .select-level-text {
+    font-size: 2.5rem;
+    margin-bottom: 40px;
+    color: #fff;
+    font-weight: bold;
+    text-align: center;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4);
+  }
+  
+  .button-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 20px;
+    width: 100%;
+    max-width: 650px;
+  }
+  
+  .level-button {
+    background-color: #f8f9fa;
+    color: #333;
+    border: none;
+    padding: 18px 25px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+  }
+  
+  .level-button:hover {
+    background: linear-gradient(to right, #ff6b6b, #ff8e53);
+    color: #fff;
+    transform: scale(1.07);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.35);
+  }
+  
+  .vstep-button {
+    background-color: #fff;
+    color: #333;
+  }
+  
+  .vstep-button:hover {
+    background: linear-gradient(to right, #4caf50, #8bc34a);
+    color: #fff;
+    transform: scale(1.07);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.35);
+  }
+  
+  /* Media queries cho responsive */
+  @media (max-width: 768px) {
+    .home-container::before,
+    .home-container::after {
+      width: 60px;
+      height: 60px;
+      top: 10px;
+      left: 10px;
+      bottom: auto;
+      right: auto;
+    }
+    .home-container::after {
+      top: auto;
+      left: auto;
+      bottom: 10px;
+      right: 10px;
+    }
+    .main-content {
+      padding: 30px;
+      width: 95%;
+      border-radius: 12px;
+    }
+  
+    .button-grid {
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 15px;
+    }
+  
+    .select-level-text {
+      font-size: 2rem;
+      margin-bottom: 30px;
+    }
+  
+    .avatar {
+      width: 60px;
+      height: 60px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .home-container::before,
+    .home-container::after {
+      width: 40px;
+      height: 40px;
+      top: 5px;
+      left: 5px;
+    }
+    .home-container::after {
+      bottom: 5px;
+      right: 5px;
+    }
+    .main-content {
+      padding: 20px;
+      border-radius: 8px;
+    }
+  
+    .button-grid {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+  
+    .select-level-text {
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+    }
+  
+    .avatar {
+      width: 50px;
+      height: 50px;
+      top: 5px;
+      left: 5px;
+    }
+  }
+  @media (max-width: 768px) {
+    .maple-leaf {
+      width: 120px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .maple-leaf {
+      width: 80px;
+    }
+  }
+
+  /* css for contents */

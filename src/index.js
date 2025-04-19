@@ -1,17 +1,20 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './index.css';
-import App from './App';
-import reportWebVitals from './reportWebVitals';
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import LevelPage from "./View/LevelPage";
+import Home from "./View/Home";
+import SpeakingPage from "./View/SpeakingPage";
+import { ToastContainer } from "react-toastify";
+const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <App />
+    <Router>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/level/:levelId" element={<LevelPage />} />
+        <Route path="/level/:levelId/speaking" element={<SpeakingPage />} />
+      </Routes>
+    </Router>
+    <ToastContainer position="top-right" autoClose={3000} />
   </React.StrictMode>
 );
-
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
