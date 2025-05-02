@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import LevelPage from "./View/LevelPage";
 import Home from "./View/Home";
 import SpeakingPage from "./View/SpeakingPage";
+import ListeningPage from "./View/ListeningPage";
 import { ToastContainer } from "react-toastify";
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
@@ -13,6 +14,7 @@ root.render(
         <Route path="/" element={<Home />} />
         <Route path="/level/:levelId" element={<LevelPage />} />
         <Route path="/level/:levelId/speaking" element={<SpeakingPage />} />
+        <Route path="/level/:levelId/listening" element={<ListeningPage />} />
       </Routes>
     </Router>
     <ToastContainer position="top-right" autoClose={3000} />
