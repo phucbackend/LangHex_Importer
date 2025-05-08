@@ -6,6 +6,7 @@ import Home from "./View/Home";
 import SpeakingPage from "./View/SpeakingPage";
 import ListeningPage from "./View/ListeningPage";
 import ReadingPage from "./View/ReadingPage";
+import WritingPage from "./View/WritingPage";
 
 import { ToastContainer } from "react-toastify";
 
@@ -19,6 +20,7 @@ root.render(
         <Route path="/level/:levelId/speaking" element={<SpeakingPage />} />
         <Route path="/level/:levelId/listening" element={<ListeningPage />} />
         <Route path="/level/:levelId/reading" element={<ReadingPage />} />
+        <Route path="/level/:levelId/writing" element={<WritingPage />} />
       </Routes>
     </Router>
     <ToastContainer position="top-right" autoClose={3000} />
