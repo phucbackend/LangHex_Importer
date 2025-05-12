@@ -1,43 +1,42 @@
 // ReadingPage.js
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-// Có thể tạo Reading.css hoặc dùng chung speaking.css
-import "../css/speaking.css";
+import "../css/speaking.css"; // Hoặc Reading.css
 
-// Import các hàm service của Reading
+// Import các hàm service của Reading (đã cập nhật)
 import {
   fetchReadingTopics,
   addReadingTopic,
-  editReadingTopic,
+  editReadingTopicName,
   deleteReadingTopic,
   fetchReadingExercisesForTopic,
   fetchReadingExerciseDetail,
   addReadingExercise,
-  editReadingExerciseTitle,
+  editReadingExerciseDisplayTitle,
   deleteReadingExercise,
-  updateReadingExerciseDetail, // Hàm update detail của Reading
-} from "../Model/ReadingService"; // Import từ ReadingService
+  updateReadingExerciseDetail,
+} from "../Model/ReadingService";
 
 const ReadingPage = () => {
   const { levelId } = useParams();
   const upperLevelId = levelId.toUpperCase();
 
-  // --- State cho Topics --- (Giữ nguyên cấu trúc state)
+  // --- State cho Topics (Sử dụng ID) ---
   const [topics, setTopics] = useState([]);
-  const [selectedTopicTitle, setSelectedTopicTitle] = useState(null);
+  const [selectedTopic, setSelectedTopic] = useState(null);
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
   const [showAddTopicInput, setShowAddTopicInput] = useState(false);
-  const [newTopicTitle, setNewTopicTitle] = useState("");
+  const [newTopicName, setNewTopicName] = useState("");
   const [topicToEdit, setTopicToEdit] = useState(null);
-  const [editingTopicTitle, setEditingTopicTitle] = useState("");
+  const [editingTopicName, setEditingTopicName] = useState("");
   const [showEditTopicModal, setShowEditTopicModal] = useState(false);
   const [topicToDelete, setTopicToDelete] = useState(null);
   const [showConfirmDeleteTopic, setShowConfirmDeleteTopic] = useState(false);
 
-  // --- State cho Exercises (Giữ nguyên cấu trúc state)
+  // --- State cho Exercises (Sử dụng ID) ---
   const [topicExercises, setTopicExercises] = useState([]);
-  const [selectedExercise, setSelectedExercise] = useState(null); // Sẽ chứa { title, readingText, questions }
+  const [selectedExercise, setSelectedExercise] = useState(null); // Sẽ chứa { id, title, script, questions }
   const [isLoadingExercises, setIsLoadingExercises] = useState(false);
   const [showAddExerciseInput, setShowAddExerciseInput] = useState(false);
   const [newExerciseTitle, setNewExerciseTitle] = useState("");
@@ -48,119 +47,137 @@ const ReadingPage = () => {
   const [showConfirmDeleteExercise, setShowConfirmDeleteExercise] =
     useState(false);
 
-  // --- State cho việc chỉnh sửa Exercise Detail (thay script -> readingText) ---
-  // Thay đổi initial state
-  const initialEmptyExerciseData = { script: "", questions: [] };
-  const [currentEditingExerciseData, setCurrentEditingExerciseData] = useState(
-    initialEmptyExerciseData
+  // --- State cho việc chỉnh sửa Exercise Detail (dùng lại "script") ---
+  const initialEmptyExerciseDataForDetail = useMemo(
+    () => ({ script: "", questions: [] }), // Đổi lại thành script
+    []
   );
-  const [initialExerciseDetailState, setInitialExerciseDetailState] =
-    useState(null);
+  // State chứa dữ liệu đang chỉnh sửa (chỉ script và questions)
+  const [currentEditingExerciseData, setCurrentEditingExerciseData] = useState(
+    initialEmptyExerciseDataForDetail
+  );
+  // State lưu trữ trạng thái ban đầu của script và questions để so sánh thay đổi
+  const [
+    initialExerciseDetailStateForComparison,
+    setInitialExerciseDetailStateForComparison,
+  ] = useState(null); // Sẽ là JSON string của {script, questions}
 
-  // --- State Loading/Submitting chung --- (Giữ nguyên)
+  // --- State Loading/Submitting chung ---
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- Hàm Fetch Dữ Liệu --- (Thay đổi hàm gọi service)
+  // --- Hàm Fetch Dữ Liệu ---
 
-  // Load danh sách Topics Reading
   const loadTopics = useCallback(async () => {
     setIsLoadingTopics(true);
-    setSelectedTopicTitle(null);
+    setSelectedTopic(null);
     setTopicExercises([]);
     setSelectedExercise(null);
-    setCurrentEditingExerciseData(initialEmptyExerciseData);
-    setInitialExerciseDetailState(null);
-
-    // Gọi hàm fetch của Reading
+    setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+    setInitialExerciseDetailStateForComparison(null);
     const fetchedTopics = await fetchReadingTopics(upperLevelId);
-    const sortedTopics = fetchedTopics.sort((a, b) =>
-      a.title.localeCompare(b.title)
-    );
-    setTopics(sortedTopics);
+    setTopics(fetchedTopics);
     setIsLoadingTopics(false);
-  }, [upperLevelId]); // Phụ thuộc levelId
+  }, [upperLevelId, initialEmptyExerciseDataForDetail]);
 
-  // Load Exercises cho một Topic Reading cụ thể
   const loadExercisesForSelectedTopic = useCallback(async () => {
-    if (!selectedTopicTitle) return;
-
+    if (!selectedTopic || !selectedTopic.id) {
+      setTopicExercises([]);
+      setSelectedExercise(null);
+      setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+      setInitialExerciseDetailStateForComparison(null);
+      return;
+    }
     setIsLoadingExercises(true);
     setSelectedExercise(null);
-    setCurrentEditingExerciseData(initialEmptyExerciseData);
-    setInitialExerciseDetailState(null);
-
-    // Gọi hàm fetch exercises của Reading
+    setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+    setInitialExerciseDetailStateForComparison(null);
     const fetchedExercises = await fetchReadingExercisesForTopic(
       upperLevelId,
-      selectedTopicTitle
+      selectedTopic.id
     );
     setTopicExercises(fetchedExercises);
     setIsLoadingExercises(false);
-  }, [upperLevelId, selectedTopicTitle]);
+  }, [upperLevelId, selectedTopic, initialEmptyExerciseDataForDetail]);
 
-  // Load chi tiết (readingText, questions) cho một Exercise Reading cụ thể
+  // Load chi tiết (script, questions) cho một Exercise Reading cụ thể
   const loadExerciseDetail = useCallback(
-    async (exerciseTitle) => {
-      if (!selectedTopicTitle || !exerciseTitle) return;
-
+    async (exerciseIdToLoad) => {
+      if (!selectedTopic || !selectedTopic.id || !exerciseIdToLoad) return;
       setIsSubmitting(true);
-      // Gọi hàm fetch detail của Reading
       const exerciseDetail = await fetchReadingExerciseDetail(
+        // Service trả về { id, title, script, questions }
         upperLevelId,
-        selectedTopicTitle,
-        exerciseTitle
+        selectedTopic.id,
+        exerciseIdToLoad
       );
       setIsSubmitting(false);
-
       if (exerciseDetail) {
-        setSelectedExercise(exerciseDetail); // Lưu cả title, readingText, questions
-        setCurrentEditingExerciseData(exerciseDetail);
-        setInitialExerciseDetailState(JSON.stringify(exerciseDetail));
+        setSelectedExercise(exerciseDetail);
+        // Lưu phần cần chỉnh sửa và so sánh (script và questions)
+        const editableData = {
+          script: exerciseDetail.script, // Đổi lại thành script
+          questions: exerciseDetail.questions,
+        };
+        setCurrentEditingExerciseData(editableData);
+        setInitialExerciseDetailStateForComparison(
+          JSON.stringify(editableData)
+        );
       } else {
         setSelectedExercise(null);
-        setCurrentEditingExerciseData(initialEmptyExerciseData);
-        setInitialExerciseDetailState(null);
-        await loadExercisesForSelectedTopic(); // Tải lại danh sách exercises
+        setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+        setInitialExerciseDetailStateForComparison(null);
+        toast.warn("Exercise details could not be loaded.");
+        await loadExercisesForSelectedTopic();
       }
     },
-    [upperLevelId, selectedTopicTitle, loadExercisesForSelectedTopic]
+    [
+      upperLevelId,
+      selectedTopic,
+      loadExercisesForSelectedTopic,
+      initialEmptyExerciseDataForDetail,
+    ]
   );
 
-  // --- useEffect Hooks --- (Giữ nguyên logic)
+  // --- useEffect Hooks ---
   useEffect(() => {
     loadTopics();
   }, [loadTopics]);
 
   useEffect(() => {
-    loadExercisesForSelectedTopic();
-  }, [loadExercisesForSelectedTopic]);
+    if (selectedTopic && selectedTopic.id) {
+      loadExercisesForSelectedTopic();
+    } else {
+      setTopicExercises([]);
+      setSelectedExercise(null);
+      setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+      setInitialExerciseDetailStateForComparison(null);
+    }
+  }, [
+    selectedTopic,
+    loadExercisesForSelectedTopic,
+    initialEmptyExerciseDataForDetail,
+  ]);
 
-  // --- Handlers cho Topics --- (Thay đổi hàm gọi service)
-
+  // --- Handlers cho Topics (Giữ nguyên) ---
   const handleSelectTopic = (topic) => {
-    if (!isSubmitting && topic && topic.title) {
-      if (topic.title !== selectedTopicTitle) {
-        setSelectedTopicTitle(topic.title);
-        // useEffect sẽ lo việc load exercises
-        setSelectedExercise(null);
-        setCurrentEditingExerciseData(initialEmptyExerciseData);
-        setInitialExerciseDetailState(null);
+    if (!isSubmitting && topic && topic.id) {
+      if (!selectedTopic || topic.id !== selectedTopic.id) {
+        setSelectedTopic(topic);
         setShowAddExerciseInput(false);
       }
     }
   };
 
   const handleAddTopic = async () => {
-    const trimmedTitle = newTopicTitle.trim();
-    if (!trimmedTitle) {
-      toast.warn("Topic title cannot be empty.");
+    const trimmedName = newTopicName.trim();
+    if (!trimmedName) {
+      toast.warn("Topic name cannot be empty.");
       return;
     }
     setIsSubmitting(true);
-    // Gọi hàm add của Reading
-    const success = await addReadingTopic(upperLevelId, trimmedTitle);
-    if (success) {
-      setNewTopicTitle("");
+    const result = await addReadingTopic(upperLevelId, trimmedName);
+    if (result.success) {
+      setNewTopicName("");
       setShowAddTopicInput(false);
       await loadTopics();
     }
@@ -168,55 +185,62 @@ const ReadingPage = () => {
   };
 
   const handleOpenEditTopicModal = (topic) => {
-    if (topic && topic.title) {
-      setTopicToEdit(topic.title);
-      setEditingTopicTitle(topic.title);
+    if (topic && topic.id) {
+      setTopicToEdit(topic);
+      setEditingTopicName(topic.topicName);
       setShowEditTopicModal(true);
     }
   };
 
-  const handleEditTopic = async () => {
-    const trimmedNewTitle = editingTopicTitle.trim();
-    if (!topicToEdit || !trimmedNewTitle || topicToEdit === trimmedNewTitle) {
-      if (topicToEdit === trimmedNewTitle) setShowEditTopicModal(false);
-      else toast.warn("Invalid input for renaming topic.");
+  const handleEditTopicName = async () => {
+    const trimmedNewName = editingTopicName.trim();
+    if (
+      !topicToEdit ||
+      !topicToEdit.id ||
+      !trimmedNewName ||
+      topicToEdit.topicName === trimmedNewName
+    ) {
+      if (topicToEdit && topicToEdit.topicName === trimmedNewName) {
+        setShowEditTopicModal(false);
+      } else toast.warn("Invalid input for renaming topic.");
       return;
     }
-
     setIsSubmitting(true);
-    // Gọi hàm edit của Reading
-    const success = await editReadingTopic(
+    const success = await editReadingTopicName(
       upperLevelId,
-      topicToEdit,
-      trimmedNewTitle
+      topicToEdit.id,
+      trimmedNewName
     );
-    setIsSubmitting(false); // Luôn set false sau khi gọi service
-
+    setIsSubmitting(false);
     if (success) {
       setShowEditTopicModal(false);
-      if (selectedTopicTitle === topicToEdit) {
-        setSelectedTopicTitle(trimmedNewTitle);
+      if (selectedTopic && selectedTopic.id === topicToEdit.id) {
+        setSelectedTopic((prev) => ({ ...prev, topicName: trimmedNewName }));
       }
       await loadTopics();
+      setTopicToEdit(null);
     }
   };
 
-  const handleDeleteTopic = (topicTitle) => {
-    if (topicTitle) {
-      setTopicToDelete(topicTitle);
+  const handleDeleteTopic = (topic) => {
+    if (topic && topic.id) {
+      setTopicToDelete(topic);
       setShowConfirmDeleteTopic(true);
     }
   };
 
   const confirmDeleteTopic = async () => {
-    if (topicToDelete) {
+    if (topicToDelete && topicToDelete.id) {
       setIsSubmitting(true);
-      // Gọi hàm delete của Reading
-      const success = await deleteReadingTopic(upperLevelId, topicToDelete);
+      const success = await deleteReadingTopic(upperLevelId, topicToDelete.id);
       if (success) {
         setShowConfirmDeleteTopic(false);
+        const deletedTopicId = topicToDelete.id;
         setTopicToDelete(null);
-        await loadTopics(); // Load lại topics sẽ reset mọi thứ
+        if (selectedTopic && selectedTopic.id === deletedTopicId) {
+          setSelectedTopic(null);
+        }
+        await loadTopics();
       }
       setIsSubmitting(false);
     }
@@ -227,12 +251,12 @@ const ReadingPage = () => {
     setShowConfirmDeleteTopic(false);
   };
 
-  // --- Handlers cho Exercises --- (Thay đổi hàm gọi service)
+  // --- Handlers cho Exercises (Giữ nguyên logic, chỉ gọi service đúng) ---
 
   const handleSelectExercise = (exercise) => {
-    if (!isSubmitting && exercise && exercise.title) {
-      if (!selectedExercise || exercise.title !== selectedExercise.title) {
-        loadExerciseDetail(exercise.title);
+    if (!isSubmitting && exercise && exercise.id) {
+      if (!selectedExercise || exercise.id !== selectedExercise.id) {
+        loadExerciseDetail(exercise.id);
       }
     }
   };
@@ -243,95 +267,94 @@ const ReadingPage = () => {
       toast.warn("Exercise title cannot be empty.");
       return;
     }
-    if (!selectedTopicTitle) {
+    if (!selectedTopic || !selectedTopic.id) {
       toast.error("Cannot add exercise: No topic selected.");
       return;
     }
-
     setIsSubmitting(true);
-    // Gọi hàm add exercise của Reading
-    const success = await addReadingExercise(
+    const result = await addReadingExercise(
       upperLevelId,
-      selectedTopicTitle,
+      selectedTopic.id,
       trimmedTitle
     );
-    if (success) {
+    if (result.success) {
       setNewExerciseTitle("");
       setShowAddExerciseInput(false);
-      await loadExercisesForSelectedTopic(); // Tải lại exercises của topic hiện tại
+      await loadExercisesForSelectedTopic();
     }
     setIsSubmitting(false);
   };
 
   const handleOpenEditExerciseModal = (exercise) => {
-    if (exercise && exercise.title) {
-      setExerciseToEdit(exercise.title);
+    if (exercise && exercise.id) {
+      setExerciseToEdit(exercise);
       setEditingExerciseTitle(exercise.title);
       setShowEditExerciseModal(true);
     }
   };
 
-  const handleEditExerciseTitle = async () => {
+  const handleEditExerciseDisplayTitle = async () => {
     const trimmedNewTitle = editingExerciseTitle.trim();
     if (
       !exerciseToEdit ||
+      !exerciseToEdit.id ||
       !trimmedNewTitle ||
-      exerciseToEdit === trimmedNewTitle
+      exerciseToEdit.title === trimmedNewTitle
     ) {
-      if (exerciseToEdit === trimmedNewTitle) setShowEditExerciseModal(false);
-      else toast.warn("Invalid input for renaming exercise.");
+      if (exerciseToEdit && exerciseToEdit.title === trimmedNewTitle) {
+        setShowEditExerciseModal(false);
+      } else toast.warn("Invalid input for renaming exercise.");
       return;
     }
-    if (!selectedTopicTitle) return;
-
+    if (!selectedTopic || !selectedTopic.id) return;
     setIsSubmitting(true);
-    // Gọi hàm edit title exercise của Reading
-    const success = await editReadingExerciseTitle(
+    const success = await editReadingExerciseDisplayTitle(
       upperLevelId,
-      selectedTopicTitle,
-      exerciseToEdit,
+      selectedTopic.id,
+      exerciseToEdit.id,
       trimmedNewTitle
     );
     setIsSubmitting(false);
-
     if (success) {
       setShowEditExerciseModal(false);
-      if (selectedExercise && selectedExercise.title === exerciseToEdit) {
-        // Reset selection khi exercise đang chọn bị đổi tên
-        setSelectedExercise(null);
-        setCurrentEditingExerciseData(initialEmptyExerciseData);
-        setInitialExerciseDetailState(null);
+      if (selectedExercise && selectedExercise.id === exerciseToEdit.id) {
+        setSelectedExercise((prev) => ({ ...prev, title: trimmedNewTitle }));
       }
-      await loadExercisesForSelectedTopic(); // Tải lại list exercise
+      await loadExercisesForSelectedTopic();
+      setExerciseToEdit(null);
     }
   };
 
-  const handleDeleteExercise = (exerciseTitle) => {
-    if (exerciseTitle) {
-      setExerciseToDelete(exerciseTitle);
+  const handleDeleteExercise = (exercise) => {
+    if (exercise && exercise.id) {
+      setExerciseToDelete(exercise);
       setShowConfirmDeleteExercise(true);
     }
   };
 
   const confirmDeleteExercise = async () => {
-    if (exerciseToDelete && selectedTopicTitle) {
+    if (
+      exerciseToDelete &&
+      exerciseToDelete.id &&
+      selectedTopic &&
+      selectedTopic.id
+    ) {
       setIsSubmitting(true);
-      // Gọi hàm delete exercise của Reading
       const success = await deleteReadingExercise(
         upperLevelId,
-        selectedTopicTitle,
-        exerciseToDelete
+        selectedTopic.id,
+        exerciseToDelete.id
       );
       if (success) {
         setShowConfirmDeleteExercise(false);
-        if (selectedExercise && selectedExercise.title === exerciseToDelete) {
-          // Reset selection nếu exercise đang chọn bị xóa
-          setSelectedExercise(null);
-          setCurrentEditingExerciseData(initialEmptyExerciseData);
-          setInitialExerciseDetailState(null);
-        }
+        const deletedExerciseId = exerciseToDelete.id;
         setExerciseToDelete(null);
-        await loadExercisesForSelectedTopic(); // Tải lại list
+        if (selectedExercise && selectedExercise.id === deletedExerciseId) {
+          setSelectedExercise(null);
+          setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+          setInitialExerciseDetailStateForComparison(null);
+        }
+        await loadExercisesForSelectedTopic();
       }
       setIsSubmitting(false);
     }
@@ -342,17 +365,17 @@ const ReadingPage = () => {
     setShowConfirmDeleteExercise(false);
   };
 
-  // --- Handlers cho Chỉnh sửa Exercise Detail (thay script -> readingText) ---
+  // --- Handlers cho Chỉnh sửa Exercise Detail (dùng lại "script") ---
 
-  // Đổi tên hàm và trường state
-  const handleReadingTextChange = (e) => {
+  // Đổi tên lại handler và state update
+  const handleScriptChange = (e) => {
     setCurrentEditingExerciseData((prev) => ({
       ...prev,
-      script: e.target.value, // Cập nhật readingText
+      script: e.target.value, // Cập nhật script
     }));
   };
 
-  // Các hàm handle question, option, correct answer giữ nguyên logic
+  // Các hàm handle question, option, correct answer giữ nguyên logic cũ
   const handleQuestionChange = (index, field, value) => {
     setCurrentEditingExerciseData((prev) => {
       const updatedQuestions = [...(prev.questions || [])];
@@ -371,7 +394,12 @@ const ReadingPage = () => {
     setCurrentEditingExerciseData((prev) => {
       const updatedQuestions = [...(prev.questions || [])];
       if (updatedQuestions[qIndex]) {
-        const currentOptions = updatedQuestions[qIndex].options || {};
+        const currentOptions = updatedQuestions[qIndex].options || {
+          A: "",
+          B: "",
+          C: "",
+          D: "",
+        };
         updatedQuestions[qIndex] = {
           ...updatedQuestions[qIndex],
           options: { ...currentOptions, [optionKey]: value },
@@ -422,44 +450,49 @@ const ReadingPage = () => {
           questions: prev.questions.filter((_, i) => i !== index),
         }));
       }
+    } else {
+      console.warn("Invalid index for deleting question:", index);
     }
   };
 
-  // --- Handler Lưu Thay Đổi cho Exercise Detail --- (Thay đổi hàm gọi service và validation)
+  // --- Handler Lưu Thay Đổi cho Exercise Detail (dùng lại "script") ---
   const handleSaveChanges = async () => {
-    if (!selectedTopicTitle || !selectedExercise || !selectedExercise.title) {
+    if (
+      !selectedTopic ||
+      !selectedTopic.id ||
+      !selectedExercise ||
+      !selectedExercise.id
+    ) {
       toast.warn("Please select a topic and an exercise before saving.");
       return;
     }
 
-    // --- Validation (Kiểm tra readingText thay vì script) ---
-    if (!currentEditingExerciseData.script.trim()) {
-      // Thay đổi ở đây
-      toast.warn("Reading Text cannot be empty."); // Thay đổi message
+    // --- Validation (Kiểm tra script và questions) ---
+    if (!currentEditingExerciseData.script?.trim()) {
+      // Kiểm tra script
+      toast.warn("Script cannot be empty."); // Đổi message
       return;
     }
-    // Validation questions giữ nguyên logic
-    for (const q of currentEditingExerciseData.questions || []) {
+    // Validation questions giữ nguyên
+    for (const [index, q] of (
+      currentEditingExerciseData.questions || []
+    ).entries()) {
       if (!q.questionText?.trim()) {
-        toast.warn("Question text cannot be empty.");
+        toast.warn(`Question text cannot be empty for Question ${index + 1}.`);
         return;
       }
       if (!q.correctAnswer || !["A", "B", "C", "D"].includes(q.correctAnswer)) {
         toast.warn(
-          `Please select a valid correct answer (A, B, C, or D) for question: "${q.questionText.substring(
-            0,
-            20
-          )}..."`
+          `Please select a valid correct answer (A, B, C, or D) for Question ${
+            index + 1
+          }.`
         );
         return;
       }
       const options = q.options || {};
       if (["A", "B", "C", "D"].some((key) => !(options[key] || "").trim())) {
         toast.warn(
-          `All options (A, B, C, D) must be filled for question: "${q.questionText.substring(
-            0,
-            20
-          )}..."`
+          `All options (A, B, C, D) must be filled for Question ${index + 1}.`
         );
         return;
       }
@@ -467,34 +500,48 @@ const ReadingPage = () => {
     // --- Kết thúc Validation ---
 
     setIsSubmitting(true);
-    // Gọi hàm update detail của Reading
+    // Gọi service với dữ liệu { script, questions }
     const success = await updateReadingExerciseDetail(
       upperLevelId,
-      selectedTopicTitle,
-      selectedExercise.title,
-      currentEditingExerciseData // Dữ liệu đang chỉnh sửa (đã có readingText)
+      selectedTopic.id,
+      selectedExercise.id,
+      currentEditingExerciseData // Truyền object chứa { script, questions }
     );
     if (success) {
-      // Cập nhật lại initial state và selected exercise state
-      const updatedExerciseData = {
-        ...currentEditingExerciseData,
-        title: selectedExercise.title, // Giữ lại title
-      };
-      setInitialExerciseDetailState(JSON.stringify(updatedExerciseData));
-      setSelectedExercise(updatedExerciseData); // Cập nhật state selectedExercise
+      // Cập nhật lại initial state để hasChanges thành false
+      setInitialExerciseDetailStateForComparison(
+        JSON.stringify(currentEditingExerciseData)
+      );
+      // Cập nhật lại state selectedExercise
+      setSelectedExercise((prev) => ({
+        ...prev,
+        script: currentEditingExerciseData.script, // Cập nhật script
+        questions: currentEditingExerciseData.questions,
+      }));
       toast.success("Changes saved successfully!");
     }
     setIsSubmitting(false);
   };
 
-  // Check if changes were made (So sánh state dựa trên readingText)
-  const hasChanges =
-    selectedExercise &&
-    JSON.stringify(currentEditingExerciseData) !== initialExerciseDetailState;
+  // Check if changes were made (So sánh JSON string của script và questions)
+  const hasChanges = useMemo(() => {
+    if (!selectedExercise || initialExerciseDetailStateForComparison === null) {
+      return false;
+    }
+    // So sánh state hiện tại (script & questions) với state ban đầu
+    const currentComparableState = JSON.stringify({
+      script: currentEditingExerciseData.script, // Đổi lại thành script
+      questions: currentEditingExerciseData.questions,
+    });
+    return currentComparableState !== initialExerciseDetailStateForComparison;
+  }, [
+    selectedExercise,
+    currentEditingExerciseData,
+    initialExerciseDetailStateForComparison,
+  ]);
 
-  // --- Render Logic --- (Thay đổi labels và input/textarea cho readingText)
+  // --- Render Logic (Đổi lại label/placeholder/binding cho script) ---
   return (
-    // Sử dụng class `speaking-container` hoặc tạo `reading-container` mới
     <div
       className={`speaking-container ${
         showConfirmDeleteTopic ||
@@ -507,7 +554,8 @@ const ReadingPage = () => {
     >
       {/* Sidebar: Danh sách Reading Topics */}
       <div className="topic-sidebar">
-        <h2>Reading Topics</h2> {/* Đổi Title */}
+        {/* ... (Phần Topic List giữ nguyên như trước, dùng ID) ... */}
+        <h2>Reading Topics</h2>
         <button
           className="add-topic"
           onClick={() =>
@@ -518,14 +566,13 @@ const ReadingPage = () => {
         >
           + Add Topic
         </button>
-        {/* Input Add Topic */}
         {showAddTopicInput && (
           <div style={{ marginBottom: "16px" }}>
             <input
               type="text"
-              value={newTopicTitle}
-              onChange={(e) => setNewTopicTitle(e.target.value)}
-              placeholder="Enter new topic title..."
+              value={newTopicName}
+              onChange={(e) => setNewTopicName(e.target.value)}
+              placeholder="Enter new topic name..."
               style={{
                 padding: "8px",
                 width: "calc(70% - 5px)",
@@ -536,14 +583,13 @@ const ReadingPage = () => {
             <button
               className="add-question-btn-save"
               onClick={handleAddTopic}
-              disabled={isSubmitting || !newTopicTitle.trim()}
+              disabled={isSubmitting || !newTopicName.trim()}
               style={{ width: "auto", padding: "8px 12px" }}
             >
               Save
             </button>
           </div>
         )}
-        {/* Topic List */}
         {isLoadingTopics ? (
           <p>Loading topics...</p>
         ) : (
@@ -551,10 +597,8 @@ const ReadingPage = () => {
             {Array.isArray(topics) && topics.length > 0
               ? topics.map((topic) => (
                   <li
-                    key={topic.title}
-                    className={
-                      selectedTopicTitle === topic.title ? "active" : ""
-                    }
+                    key={topic.id}
+                    className={selectedTopic?.id === topic.id ? "active" : ""}
                     onClick={() => handleSelectTopic(topic)}
                     style={{ pointerEvents: isSubmitting ? "none" : "auto" }}
                   >
@@ -565,9 +609,8 @@ const ReadingPage = () => {
                         wordBreak: "break-word",
                       }}
                     >
-                      {topic.title}
+                      {topic.topicName}
                     </span>
-                    {/* Edit/Delete Topic Buttons */}
                     <div className="edit-delete-btn-container">
                       <button
                         onClick={(e) => {
@@ -577,14 +620,14 @@ const ReadingPage = () => {
                         className="edit-topic"
                         style={{ cursor: "pointer" }}
                         disabled={isSubmitting}
-                        title="Edit Topic Title"
+                        title="Edit Topic Name"
                       >
                         📝
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteTopic(topic.title);
+                          handleDeleteTopic(topic);
                         }}
                         className="delete-topic"
                         style={{ cursor: "pointer" }}
@@ -599,14 +642,15 @@ const ReadingPage = () => {
               : !isLoadingTopics && <li>No topics found.</li>}
           </ul>
         )}
-      </div>{" "}
-      {/* End Sidebar */}
+      </div>
+
       {/* Detail Area: Exercises List & Exercise Detail Editor */}
       <div className="topic-detail">
-        {selectedTopicTitle ? (
+        {selectedTopic ? (
           <>
             {/* --- Section Hiển thị Exercises của Topic --- */}
             <div className="exercise-section" style={{ marginBottom: "30px" }}>
+              {/* ... (Phần Exercise List giữ nguyên như trước, dùng ID) ... */}
               <div
                 style={{
                   display: "flex",
@@ -615,9 +659,9 @@ const ReadingPage = () => {
                   marginBottom: "15px",
                 }}
               >
-                <h2>{selectedTopicTitle} - Exercises</h2>
+                <h2>{selectedTopic.topicName} - Exercises</h2>
                 <button
-                  className="add-topic" // Hoặc "add-exercise-btn"
+                  className="add-topic"
                   onClick={() =>
                     !isSubmitting &&
                     setShowAddExerciseInput(!showAddExerciseInput)
@@ -628,8 +672,6 @@ const ReadingPage = () => {
                   + Add Exercise
                 </button>
               </div>
-
-              {/* Input Add Exercise */}
               {showAddExerciseInput && (
                 <div
                   style={{
@@ -661,8 +703,6 @@ const ReadingPage = () => {
                   </button>
                 </div>
               )}
-
-              {/* Exercise List */}
               {isLoadingExercises ? (
                 <p>Loading exercises...</p>
               ) : (
@@ -670,11 +710,9 @@ const ReadingPage = () => {
                   {Array.isArray(topicExercises) && topicExercises.length > 0
                     ? topicExercises.map((exercise) => (
                         <li
-                          key={exercise.title}
+                          key={exercise.id}
                           className={
-                            selectedExercise?.title === exercise.title
-                              ? "active"
-                              : ""
+                            selectedExercise?.id === exercise.id ? "active" : ""
                           }
                           onClick={() => handleSelectExercise(exercise)}
                           style={{
@@ -690,14 +728,13 @@ const ReadingPage = () => {
                           >
                             {exercise.title}
                           </span>
-                          {/* Edit/Delete Exercise Buttons */}
                           <div className="edit-delete-btn-container">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleOpenEditExerciseModal(exercise);
                               }}
-                              className="edit-topic" // Reuse class
+                              className="edit-topic"
                               style={{ cursor: "pointer" }}
                               disabled={isSubmitting}
                               title="Edit Exercise Title"
@@ -707,11 +744,11 @@ const ReadingPage = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteExercise(exercise.title);
+                                handleDeleteExercise(exercise);
                               }}
-                              className="delete-topic" // Reuse class
+                              className="delete-topic"
                               style={{ cursor: "pointer" }}
-                              disabled={isSubmitting} // Có thể thêm logic disable nếu chỉ có 1 exercise
+                              disabled={isSubmitting}
                               title="Delete Exercise"
                             >
                               ❌
@@ -724,9 +761,9 @@ const ReadingPage = () => {
                       )}
                 </ul>
               )}
-            </div>{" "}
-            {/* End Exercise Section */}
-            {/* --- Section Chỉnh sửa Exercise Detail (Reading Text & Questions) --- */}
+            </div>
+
+            {/* --- Section Chỉnh sửa Exercise Detail (dùng lại "script") --- */}
             {selectedExercise ? (
               <div
                 className="exercise-detail-editor"
@@ -744,7 +781,7 @@ const ReadingPage = () => {
                   <h2>{selectedExercise.title} - Details</h2>
                   {hasChanges && (
                     <button
-                      className="add-question-btn-save" // Style lại nếu cần
+                      className="add-question-btn-save"
                       onClick={handleSaveChanges}
                       disabled={isSubmitting}
                       style={{
@@ -758,38 +795,40 @@ const ReadingPage = () => {
                     </button>
                   )}
                 </div>
-                {/* --- Form chỉnh sửa Reading Text và Questions --- */}
-                {/* Reading Text Input (Thay thế Script Input) */}
+
+                {/* Script Input (Đổi lại từ Reading Text) */}
                 <div className="form-group" style={{ marginBottom: "20px" }}>
                   <label
-                    htmlFor="readingText" // Đổi htmlFor
+                    htmlFor="readingScript" // Đổi lại htmlFor
                     style={{
                       display: "block",
                       marginBottom: "5px",
                       fontWeight: "bold",
                     }}
                   >
-                    Reading Text: {/* Đổi Label */}
+                    Script / Reading Passage: {/* Đổi lại Label */}
                   </label>
                   <textarea
-                    id="readingText" // Đổi id
-                    value={currentEditingExerciseData.script} // Đổi value binding
-                    onChange={handleReadingTextChange} // Đổi onChange handler
-                    placeholder="Enter the reading text here..." // Đổi placeholder
-                    rows={10} // Tăng số dòng nếu cần cho Reading
+                    id="readingScript" // Đổi lại id
+                    value={currentEditingExerciseData.script} // Bind với script
+                    onChange={handleScriptChange} // Dùng handler script
+                    placeholder="Enter the script or reading passage here..." // Đổi placeholder
+                    rows={10}
                     style={{
                       width: "100%",
                       padding: "10px",
                       border: "1px solid #ccc",
                       borderRadius: "4px",
-                      fontSize: "1rem", // Có thể chỉnh font size
-                      lineHeight: "1.5", // Có thể chỉnh line height
+                      fontSize: "1rem",
+                      lineHeight: "1.5",
                     }}
                     disabled={isSubmitting}
                   />
                 </div>
-                {/* Questions Section (Giữ nguyên cấu trúc render Questions) */}
+
+                {/* Questions Section (Giữ nguyên logic render Questions) */}
                 <div className="questions-section">
+                  {/* ... (Phần render questions giữ nguyên như trước) ... */}
                   <h3
                     style={{
                       borderBottom: "1px solid #eee",
@@ -813,7 +852,6 @@ const ReadingPage = () => {
                           backgroundColor: "#f9f9f9",
                         }}
                       >
-                        {/* Question Header */}
                         <div
                           style={{
                             display: "flex",
@@ -838,8 +876,6 @@ const ReadingPage = () => {
                             ❌
                           </button>
                         </div>
-
-                        {/* Question Text Input */}
                         <div
                           className="form-group"
                           style={{ marginBottom: "10px" }}
@@ -864,8 +900,6 @@ const ReadingPage = () => {
                             disabled={isSubmitting}
                           />
                         </div>
-
-                        {/* Options & Correct Answer */}
                         <div
                           className="form-group options-group"
                           style={{ marginBottom: "10px" }}
@@ -886,8 +920,7 @@ const ReadingPage = () => {
                             >
                               <input
                                 type="radio"
-                                // Cập nhật name để đảm bảo duy nhất cho từng câu hỏi của exercise này
-                                name={`correctAnswer_Reading_${selectedExercise.title}_${index}`}
+                                name={`correctAnswer_Reading_${selectedExercise.id}_${index}`}
                                 value={optionKey}
                                 checked={q.correctAnswer === optionKey}
                                 onChange={(e) =>
@@ -931,8 +964,6 @@ const ReadingPage = () => {
                         </div>
                       </div>
                     ))}
-
-                  {/* Add Question Button */}
                   <button
                     onClick={handleAddQuestion}
                     className="add-question-btn"
@@ -940,11 +971,9 @@ const ReadingPage = () => {
                   >
                     + Add Question
                   </button>
-                </div>{" "}
-                {/* End Questions Section */}
-              </div> // End Exercise Detail Editor
+                </div>
+              </div>
             ) : (
-              // Hiển thị khi có topic được chọn nhưng chưa có exercise nào được chọn
               !isLoadingExercises && (
                 <p
                   style={{
@@ -960,34 +989,33 @@ const ReadingPage = () => {
             )}
           </>
         ) : (
-          // Thông báo khi chưa chọn topic
           <p>
             Select a reading topic from the sidebar to manage its exercises.
           </p>
         )}
-      </div>{" "}
-      {/* End Detail Area */}
-      {/* --- Modals (Giữ nguyên cấu trúc, chỉ thay đổi text và handler nếu cần) --- */}
-      {/* Modal Edit Topic Title */}
-      {showEditTopicModal && (
+      </div>
+
+      {/* --- Modals (Giữ nguyên như trước, dùng ID và hiển thị tên từ object) --- */}
+      {/* ... (Modals giữ nguyên cấu trúc như phiên bản trước) ... */}
+      {showEditTopicModal && topicToEdit && (
         <div className="edit-topic-modal">
           <div className="modal-content">
-            <h3>Edit Topic Title</h3>
+            <h3>Edit Topic Name</h3>
             <input
               type="text"
-              value={editingTopicTitle}
-              onChange={(e) => setEditingTopicTitle(e.target.value)}
-              placeholder="Enter new topic title..."
+              value={editingTopicName}
+              onChange={(e) => setEditingTopicName(e.target.value)}
+              placeholder="Enter new topic name..."
               disabled={isSubmitting}
             />
             <div style={{ marginTop: "15px" }}>
               <button
                 className="btn-modal-save"
-                onClick={handleEditTopic} // Handler đã được cập nhật ở trên
+                onClick={handleEditTopicName}
                 disabled={
                   isSubmitting ||
-                  !editingTopicTitle.trim() ||
-                  editingTopicTitle.trim() === topicToEdit
+                  !editingTopicName.trim() ||
+                  editingTopicName.trim() === topicToEdit.topicName
                 }
               >
                 {isSubmitting ? "Saving..." : "Save"}
@@ -1003,18 +1031,17 @@ const ReadingPage = () => {
           </div>
         </div>
       )}
-      {/* Modal Confirm Delete Topic */}
-      {showConfirmDeleteTopic && (
+      {showConfirmDeleteTopic && topicToDelete && (
         <div className="confirm-delete-modal">
           <div className="modal-content">
-            <h3>Delete Topic "{topicToDelete}"?</h3>
+            <h3>Delete Topic "{topicToDelete.topicName}"?</h3>
             <p>
               This will delete the topic and <strong>all its exercises</strong>.
-              This action cannot be undone.
+              (ID: {topicToDelete.id}) This action cannot be undone.
             </p>
             <div style={{ marginTop: "15px" }}>
               <button
-                onClick={confirmDeleteTopic} // Handler đã được cập nhật
+                onClick={confirmDeleteTopic}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >
@@ -1031,14 +1058,12 @@ const ReadingPage = () => {
           </div>
         </div>
       )}
-      {/* Modal Edit Exercise Title */}
-      {showEditExerciseModal && (
+      {showEditExerciseModal && exerciseToEdit && selectedTopic && (
         <div className="edit-topic-modal">
-          {" "}
-          {/* Reuse class */}
           <div className="modal-content">
             <h3>Edit Exercise Title</h3>
-            <p>Topic: {selectedTopicTitle}</p>
+            <p>Topic: {selectedTopic?.topicName}</p>
+            <p>Exercise (current): {exerciseToEdit?.title}</p>
             <input
               type="text"
               value={editingExerciseTitle}
@@ -1049,11 +1074,12 @@ const ReadingPage = () => {
             <div style={{ marginTop: "15px" }}>
               <button
                 className="btn-modal-save"
-                onClick={handleEditExerciseTitle} // Handler đã được cập nhật
+                onClick={handleEditExerciseDisplayTitle}
                 disabled={
                   isSubmitting ||
                   !editingExerciseTitle.trim() ||
-                  editingExerciseTitle.trim() === exerciseToEdit
+                  (exerciseToEdit &&
+                    editingExerciseTitle.trim() === exerciseToEdit.title)
                 }
               >
                 {isSubmitting ? "Saving..." : "Save"}
@@ -1069,21 +1095,19 @@ const ReadingPage = () => {
           </div>
         </div>
       )}
-      {/* Modal Confirm Delete Exercise */}
-      {showConfirmDeleteExercise && (
+      {showConfirmDeleteExercise && exerciseToDelete && selectedTopic && (
         <div className="confirm-delete-modal">
-          {" "}
-          {/* Reuse class */}
           <div className="modal-content">
-            <h3>Delete Exercise "{exerciseToDelete}"?</h3>
-            <p>Topic: {selectedTopicTitle}</p>
+            <h3>Delete Exercise "{exerciseToDelete?.title}"?</h3>
+            <p>Topic: {selectedTopic?.topicName}</p>
             <p>
-              This will delete the exercise reading text and questions. This
-              action cannot be undone.
+              This will delete the exercise script and questions.{" "}
+              {/* Đổi lại text */}
+              (ID: {exerciseToDelete?.id}) This action cannot be undone.
             </p>
             <div style={{ marginTop: "15px" }}>
               <button
-                onClick={confirmDeleteExercise} // Handler đã được cập nhật
+                onClick={confirmDeleteExercise}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >
@@ -1100,7 +1124,7 @@ const ReadingPage = () => {
           </div>
         </div>
       )}
-    </div> // End container
+    </div>
   );
 };
 

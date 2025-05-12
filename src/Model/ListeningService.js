@@ -1,18 +1,28 @@
 // ListeningService.js
 import { database } from "../firebaseConfig";
-import { ref, get, set } from "firebase/database"; // Thêm push, remove
+import { ref, get, set, push, update } from "firebase/database"; // Thêm push, update
 import { toast } from "react-toastify";
 
 const BASE_PATH = "Lessons/Levels";
 
+// --- Topic Management (Sử dụng ID cho Topics) ---
+
+// Fetch listening topics for a given level (Lấy id và topicName)
 export const fetchListeningTopics = async (level) => {
   try {
+    // Đường dẫn đến container Topics của Listening
     const topicsRef = ref(database, `${BASE_PATH}/${level}/Listening/Topics`);
     const snapshot = await get(topicsRef);
     if (snapshot.exists()) {
       const data = snapshot.val();
-      // Chỉ trả về mảng các title topics
-      const topicsArray = Object.keys(data).map((title) => ({ title }));
+      const topicsArray = Object.keys(data).map((id) => ({
+        id: id, // ID của Topic (key của node)
+        topicName: data[id].topicName || data[id].title || id, // Tên hiển thị
+      }));
+      // Sắp xếp theo topicName
+      topicsArray.sort((a, b) =>
+        a.topicName.toLowerCase() > b.topicName.toLowerCase() ? 1 : -1
+      );
       return topicsArray;
     } else {
       return [];
@@ -24,112 +34,107 @@ export const fetchListeningTopics = async (level) => {
   }
 };
 
-// Add a new listening topic (khởi tạo với node Exercises rỗng)
-export const addListeningTopic = async (level, newTopicTitle) => {
-  const trimmedTitle = newTopicTitle.trim(); // Giữ lại tên gốc sau khi trim
-  if (!trimmedTitle) {
-    toast.warn("Topic title cannot be empty.");
-    return false; // Vẫn trả về false để component xử lý
+// Add a new listening topic using push() for unique ID
+export const addListeningTopic = async (level, newTopicName) => {
+  const trimmedName = newTopicName.trim();
+  if (!trimmedName) {
+    toast.warn("Topic name cannot be empty.");
+    return { success: false };
   }
   try {
-    // --- Phần kiểm tra trùng lặp ---
-    // Sử dụng logic tương tự Speaking để chuẩn hóa khi so sánh (lowercase, bỏ khoảng trắng)
-    const compareTitle = trimmedTitle.replace(/\s+/g, "").toLowerCase();
-    const topicsRef = ref(database, `${BASE_PATH}/${level}/Listening/Topics`);
-    const snapshot = await get(topicsRef);
+    const topicsContainerRef = ref(
+      database,
+      `${BASE_PATH}/${level}/Listening/Topics`
+    );
+
+    // Kiểm tra trùng lặp tên Topic (display name)
+    const snapshot = await get(topicsContainerRef);
     if (snapshot.exists()) {
       const topicsData = snapshot.val();
-      // Chuẩn hóa các topic đã có để so sánh
-      const existingTopicsNormalized = Object.keys(topicsData).map((topic) =>
-        topic.trim().replace(/\s+/g, "").toLowerCase()
-      );
-      if (existingTopicsNormalized.includes(compareTitle)) {
-        // Thông báo dùng tên gốc (chưa trim) mà user nhập
-        toast.warn(`Topic "${newTopicTitle}" already exists.`);
-        return false; // Trả về false
+      for (const id in topicsData) {
+        const existingName = topicsData[id].topicName || topicsData[id].title;
+        if (
+          existingName &&
+          existingName.trim().toLowerCase() === trimmedName.toLowerCase()
+        ) {
+          toast.warn(`Topic with name "${trimmedName}" already exists.`);
+          return { success: false };
+        }
       }
     }
-    // --- Kết thúc kiểm tra trùng lặp ---
 
-    // Tạo topic mới với tên đã trim (giữ nguyên hoa thường) và giá trị là true
-    const topicRef = ref(
-      database,
-      `${BASE_PATH}/${level}/Listening/Topics/${trimmedTitle}` // Sử dụng trimmedTitle
-    );
-    // *** THAY ĐỔI CHÍNH: Set giá trị là true thay vì { Exercises: {} } ***
-    await set(topicRef, true);
-    // *** KẾT THÚC THAY ĐỔI CHÍNH ***
-
-    toast.success(`Added new listening topic: ${trimmedTitle}`);
-    return true; // Vẫn trả về true khi thành công
+    const newTopicRef = push(topicsContainerRef); // Firebase tạo ID duy nhất
+    const newTopicId = newTopicRef.key;
+    const topicData = {
+      topicName: trimmedName, // Lưu tên hiển thị
+      Exercises: {}, // Khởi tạo node Exercises rỗng
+    };
+    await set(newTopicRef, topicData);
+    toast.success(`Added new listening topic: ${trimmedName}`);
+    return { success: true, id: newTopicId, topicName: trimmedName };
   } catch (error) {
-    console.error("Error adding listening topic:", error); // Log lỗi để debug
-    // Thông báo lỗi dùng tên gốc user nhập
-    toast.error(
-      `Failed to add topic: "${newTopicTitle}". Check console for details.`
-    );
-    return false; // Trả về false khi lỗi
+    console.error("Error adding listening topic:", error);
+    toast.error(`Failed to add topic: "${trimmedName}".`);
+    return { success: false };
   }
 };
 
-// Edit an existing listening topic title (rename) - Logic giữ nguyên
-export const editListeningTopic = async (
-  level,
-  oldTopicTitle,
-  newTopicTitle
-) => {
-  const trimmedNewTitle = newTopicTitle.trim();
-  if (!trimmedNewTitle || trimmedNewTitle === oldTopicTitle) {
-    toast.warn("New topic title cannot be empty or same as old title.");
+// Edit listening topic display name (ID không đổi)
+export const editListeningTopicName = async (level, topicId, newTopicName) => {
+  const trimmedNewName = newTopicName.trim();
+  if (!trimmedNewName) {
+    toast.warn("New topic name cannot be empty.");
     return false;
   }
   try {
-    const newTopicCheckRef = ref(
+    // Optional: Kiểm tra trùng lặp tên mới với các topic khác
+    const topicsContainerRef = ref(
       database,
-      `${BASE_PATH}/${level}/Listening/Topics/${trimmedNewTitle}`
+      `${BASE_PATH}/${level}/Listening/Topics`
     );
-    const newSnapshot = await get(newTopicCheckRef);
-    if (newSnapshot.exists()) {
-      toast.warn(`Topic "${trimmedNewTitle}" already exists.`);
-      return false;
-    }
-
-    const oldTopicRef = ref(
-      database,
-      `${BASE_PATH}/${level}/Listening/Topics/${oldTopicTitle}`
-    );
-    const snapshot = await get(oldTopicRef);
-
+    const snapshot = await get(topicsContainerRef);
     if (snapshot.exists()) {
-      const topicData = snapshot.val();
-      const newTopicRef = ref(
-        database,
-        `${BASE_PATH}/${level}/Listening/Topics/${trimmedNewTitle}`
-      );
-      await set(newTopicRef, topicData); // Copy toàn bộ dữ liệu (bao gồm cả Exercises)
-      await set(oldTopicRef, null); // Xóa topic cũ
-      toast.success(`Renamed topic to "${trimmedNewTitle}"`);
-      return true;
-    } else {
-      toast.warn(`Topic "${oldTopicTitle}" not found.`);
-      return false;
+      const topicsData = snapshot.val();
+      for (const id in topicsData) {
+        if (id !== topicId) {
+          const existingName = topicsData[id].topicName || topicsData[id].title;
+          if (
+            existingName &&
+            existingName.trim().toLowerCase() === trimmedNewName.toLowerCase()
+          ) {
+            toast.warn(
+              `Another topic with the name "${trimmedNewName}" already exists.`
+            );
+            return false;
+          }
+        }
+      }
     }
+
+    // Chỉ cập nhật trường 'topicName'
+    const topicNameRef = ref(
+      database,
+      `${BASE_PATH}/${level}/Listening/Topics/${topicId}/topicName`
+    );
+    await set(topicNameRef, trimmedNewName);
+    toast.success(`Renamed topic to "${trimmedNewName}"`);
+    return true;
   } catch (error) {
-    console.error("Error editing listening topic:", error);
+    console.error("Error editing listening topic name:", error);
     toast.error("Failed to rename topic.");
     return false;
   }
 };
 
-// Delete a listening topic (bao gồm tất cả exercises bên trong) - Logic giữ nguyên
-export const deleteListeningTopic = async (level, topicTitle) => {
+// Delete a listening topic by ID (bao gồm tất cả exercises bên trong)
+export const deleteListeningTopic = async (level, topicId) => {
   try {
     const topicRef = ref(
       database,
-      `${BASE_PATH}/${level}/Listening/Topics/${topicTitle}`
+      `${BASE_PATH}/${level}/Listening/Topics/${topicId}`
     );
-    await set(topicRef, null); // Hoặc dùng remove(topicRef)
-    toast.success(`Deleted topic: ${topicTitle}`);
+    await set(topicRef, null);
+    toast.success(`Deleted topic (ID: ${topicId})`);
     return true;
   } catch (error) {
     console.error("Error deleting listening topic:", error);
@@ -138,184 +143,194 @@ export const deleteListeningTopic = async (level, topicTitle) => {
   }
 };
 
-// --- Exercise Management --- (Hàm mới)
+// --- Exercise Management (Sử dụng topicId và exerciseId) ---
 
-// Fetch exercises for a specific topic (Chỉ lấy title hoặc key)
-export const fetchExercisesForTopic = async (level, topicTitle) => {
+// Fetch exercises for a specific listening topic (Lấy id và title)
+export const fetchListeningExercisesForTopic = async (level, topicId) => {
   try {
     const exercisesRef = ref(
       database,
-      `${BASE_PATH}/${level}/Listening/Topics/${topicTitle}/Exercises`
+      `${BASE_PATH}/${level}/Listening/Topics/${topicId}/Exercises` // Sử dụng topicId
     );
     const snapshot = await get(exercisesRef);
     if (snapshot.exists()) {
       const data = snapshot.val();
-      // Trả về mảng các object { title: exerciseTitle }
-      const exercisesArray = Object.keys(data).map((title) => ({ title }));
-      // Sắp xếp exercises theo tên nếu cần
+      const exercisesArray = Object.keys(data).map((id) => ({
+        id: id, // ID của Exercise
+        title: data[id].title || id, // title của Exercise, fallback là id
+      }));
       exercisesArray.sort((a, b) => a.title.localeCompare(b.title));
       return exercisesArray;
     } else {
-      return []; // Trả về mảng rỗng nếu không có exercise nào
+      return [];
     }
   } catch (error) {
-    console.error(`Error fetching exercises for topic ${topicTitle}:`, error);
-    toast.error(`Failed to fetch exercises for topic "${topicTitle}".`);
+    console.error(`Error fetching exercises for topic ID ${topicId}:`, error);
+    toast.error(`Failed to fetch exercises for the selected topic.`);
     return [];
   }
 };
 
-// Fetch detail (script, questions) of a specific exercise
-export const fetchExerciseDetail = async (level, topicTitle, exerciseTitle) => {
+// Fetch detail (title, script, questions) of a specific listening exercise by ID
+export const fetchListeningExerciseDetail = async (
+  level,
+  topicId,
+  exerciseId // Sử dụng exerciseId
+) => {
   try {
     const exerciseRef = ref(
       database,
-      `${BASE_PATH}/${level}/Listening/Topics/${topicTitle}/Exercises/${exerciseTitle}`
+      `${BASE_PATH}/${level}/Listening/Topics/${topicId}/Exercises/${exerciseId}` // Sử dụng ID
     );
     const snapshot = await get(exerciseRef);
     if (snapshot.exists()) {
       const exerciseRaw = snapshot.val();
       // Chuẩn hóa dữ liệu trả về
       const exerciseDetail = {
-        title: exerciseTitle, // Bao gồm cả title để tiện sử dụng
-        script: exerciseRaw?.script || "",
+        id: exerciseId, // Thêm ID vào kết quả trả về
+        title: exerciseRaw?.title || exerciseId, // Lấy title hoặc fallback id
+        script: exerciseRaw?.script || "", // Giữ nguyên là script
         questions: Array.isArray(exerciseRaw?.questions)
           ? exerciseRaw.questions
           : [],
       };
       return exerciseDetail;
     } else {
-      // Trường hợp exercise không tồn tại (có thể đã bị xóa)
       toast.warn(
-        `Exercise "${exerciseTitle}" not found in topic "${topicTitle}".`
+        `Exercise with ID "${exerciseId}" not found in the selected topic.`
       );
-      return null; // Trả về null để component xử lý
+      return null;
     }
   } catch (error) {
     console.error(
-      `Error fetching detail for exercise ${exerciseTitle}:`,
+      `Error fetching detail for exercise ID ${exerciseId}:`,
       error
     );
-    toast.error(`Failed to fetch details for exercise "${exerciseTitle}".`);
-    return null; // Trả về null khi có lỗi
+    toast.error(`Failed to fetch details for exercise ID "${exerciseId}".`);
+    return null;
   }
 };
 
-// Add a new exercise to a topic
+// Add a new listening exercise to a topic using push() for unique ID
 export const addListeningExercise = async (
   level,
-  topicTitle,
-  newExerciseTitle
+  topicId,
+  displayTitle // Tên hiển thị của exercise
 ) => {
-  const trimmedTitle = newExerciseTitle.trim();
-  if (!trimmedTitle) {
-    toast.warn("Exercise title cannot be empty.");
-    return false;
+  const trimmedDisplayTitle = displayTitle.trim();
+  if (!trimmedDisplayTitle) {
+    toast.warn("Exercise display title cannot be empty.");
+    return { success: false };
   }
   try {
-    // Check for duplicate exercise title within the same topic
-    const exercisesRef = ref(
+    const exercisesContainerRef = ref(
       database,
-      `${BASE_PATH}/${level}/Listening/Topics/${topicTitle}/Exercises`
+      `${BASE_PATH}/${level}/Listening/Topics/${topicId}/Exercises` // Sử dụng topicId
     );
-    const snapshot = await get(exercisesRef);
-    if (snapshot.exists()) {
-      const exercisesData = snapshot.val();
-      const existingTitles = Object.keys(exercisesData).map((t) =>
-        t.trim().toLowerCase()
-      );
-      if (existingTitles.includes(trimmedTitle.toLowerCase())) {
-        toast.warn(`Exercise "${trimmedTitle}" already exists in this topic.`);
-        return false;
+
+    // Kiểm tra trùng lặp title (tên hiển thị) của exercise trong cùng topic
+    const existingExercisesSnapshot = await get(exercisesContainerRef);
+    if (existingExercisesSnapshot.exists()) {
+      const exercisesData = existingExercisesSnapshot.val();
+      for (const id in exercisesData) {
+        if (
+          exercisesData[id].title &&
+          exercisesData[id].title.trim().toLowerCase() ===
+            trimmedDisplayTitle.toLowerCase()
+        ) {
+          toast.warn(
+            `An exercise with the title "${trimmedDisplayTitle}" already exists in this topic.`
+          );
+          return { success: false };
+        }
       }
     }
 
-    // Add new exercise with default empty structure
-    const newExerciseRef = ref(
-      database,
-      `${BASE_PATH}/${level}/Listening/Topics/${topicTitle}/Exercises/${trimmedTitle}`
-    );
+    const newExerciseRef = push(exercisesContainerRef); // Firebase tạo ID duy nhất
+    const newExerciseId = newExerciseRef.key;
+
+    // Cấu trúc dữ liệu mặc định
     const defaultExerciseData = {
+      title: trimmedDisplayTitle, // Lưu tên hiển thị
       script: "",
       questions: [],
     };
     await set(newExerciseRef, defaultExerciseData);
-    toast.success(`Added new exercise: ${trimmedTitle}`);
-    return true;
+    toast.success(`Added new exercise: ${trimmedDisplayTitle}`);
+    return { success: true, id: newExerciseId, title: trimmedDisplayTitle };
   } catch (error) {
     console.error("Error adding listening exercise:", error);
-    toast.error(`Failed to add exercise: ${trimmedTitle}`);
-    return false;
+    toast.error(`Failed to add exercise: ${trimmedDisplayTitle}`);
+    return { success: false };
   }
 };
 
-// Edit an existing exercise title (rename) within a topic
-export const editListeningExerciseTitle = async (
+// Edit an existing listening exercise display title (ID không đổi)
+export const editListeningExerciseDisplayTitle = async (
   level,
-  topicTitle,
-  oldExerciseTitle,
-  newExerciseTitle
+  topicId,
+  exerciseId, // Nhận exerciseId
+  newDisplayTitle
 ) => {
-  const trimmedNewTitle = newExerciseTitle.trim();
-  if (!trimmedNewTitle || trimmedNewTitle === oldExerciseTitle) {
-    toast.warn("New exercise title cannot be empty or same as old title.");
+  const trimmedNewTitle = newDisplayTitle.trim();
+  if (!trimmedNewTitle) {
+    toast.warn("New exercise display title cannot be empty.");
     return false;
   }
   try {
-    // Check if new title already exists within the same topic
-    const newExerciseCheckRef = ref(
+    // Optional: Check for duplicate title among other exercises
+    const exercisesContainerRef = ref(
       database,
-      `${BASE_PATH}/${level}/Listening/Topics/${topicTitle}/Exercises/${trimmedNewTitle}`
+      `${BASE_PATH}/${level}/Listening/Topics/${topicId}/Exercises`
     );
-    const newSnapshot = await get(newExerciseCheckRef);
-    if (newSnapshot.exists()) {
-      toast.warn(`Exercise "${trimmedNewTitle}" already exists in this topic.`);
-      return false;
-    }
-
-    // Get old exercise data
-    const oldExerciseRef = ref(
-      database,
-      `${BASE_PATH}/${level}/Listening/Topics/${topicTitle}/Exercises/${oldExerciseTitle}`
-    );
-    const snapshot = await get(oldExerciseRef);
-
+    const snapshot = await get(exercisesContainerRef);
     if (snapshot.exists()) {
-      const exerciseData = snapshot.val();
-      // Create new exercise node with old data
-      const newExerciseRef = ref(
-        database,
-        `${BASE_PATH}/${level}/Listening/Topics/${topicTitle}/Exercises/${trimmedNewTitle}`
-      );
-      await set(newExerciseRef, exerciseData);
-      // Remove old exercise node
-      await set(oldExerciseRef, null); // Hoặc remove(oldExerciseRef)
-      toast.success(`Renamed exercise to "${trimmedNewTitle}"`);
-      return true;
-    } else {
-      toast.warn(`Exercise "${oldExerciseTitle}" not found.`);
-      return false;
+      const exercisesData = snapshot.val();
+      for (const id in exercisesData) {
+        if (id !== exerciseId) {
+          // Bỏ qua exercise đang sửa
+          if (
+            exercisesData[id].title &&
+            exercisesData[id].title.trim().toLowerCase() ===
+              trimmedNewTitle.toLowerCase()
+          ) {
+            toast.warn(
+              `Another exercise with the title "${trimmedNewTitle}" already exists in this topic.`
+            );
+            return false;
+          }
+        }
+      }
     }
+
+    // Chỉ cập nhật trường 'title'
+    const exerciseTitleFieldRef = ref(
+      database,
+      `${BASE_PATH}/${level}/Listening/Topics/${topicId}/Exercises/${exerciseId}/title` // Sử dụng ID
+    );
+    await set(exerciseTitleFieldRef, trimmedNewTitle);
+    toast.success(`Exercise display title updated to "${trimmedNewTitle}"`);
+    return true;
   } catch (error) {
-    console.error("Error editing listening exercise title:", error);
-    toast.error("Failed to rename exercise.");
+    console.error("Error editing listening exercise display title:", error);
+    toast.error("Failed to update exercise display title.");
     return false;
   }
 };
 
-// Delete an exercise from a topic
+// Delete a listening exercise by ID
 export const deleteListeningExercise = async (
   level,
-  topicTitle,
-  exerciseTitle
+  topicId,
+  exerciseId // Sử dụng exerciseId
 ) => {
   try {
     const exerciseRef = ref(
       database,
-      `${BASE_PATH}/${level}/Listening/Topics/${topicTitle}/Exercises/${exerciseTitle}`
+      `${BASE_PATH}/${level}/Listening/Topics/${topicId}/Exercises/${exerciseId}` // Sử dụng ID
     );
-    await set(exerciseRef, null); // Hoặc remove(exerciseRef)
-    toast.success(`Deleted exercise: ${exerciseTitle}`);
+    await set(exerciseRef, null);
+    toast.success(`Deleted exercise (ID: ${exerciseId})`);
     return true;
   } catch (error) {
     console.error("Error deleting listening exercise:", error);
@@ -324,11 +339,11 @@ export const deleteListeningExercise = async (
   }
 };
 
-// Update the detail (script and questions) of a specific exercise
+// Update the detail (script and questions) of a specific exercise by ID
 export const updateListeningExerciseDetail = async (
   level,
-  topicTitle,
-  exerciseTitle, // Thêm exerciseTitle
+  topicId,
+  exerciseId, // Sử dụng exerciseId
   exerciseData // Dữ liệu { script, questions }
 ) => {
   try {
@@ -341,31 +356,32 @@ export const updateListeningExerciseDetail = async (
       throw new Error("Invalid exercise data structure for update.");
     }
 
-    // Sanitize questions (đảm bảo ID, options, correctAnswer)
+    // Sanitize questions
     const sanitizedQuestions = exerciseData.questions.map((q, index) => ({
-      id: q.id || `q_${Date.now()}_${index}`, // Tạo ID nếu chưa có
+      id: q.id || `q_${Date.now()}_${index}`,
       questionText: q.questionText?.trim() || "",
       options: q.options || { A: "", B: "", C: "", D: "" },
       correctAnswer: q.correctAnswer || "",
     }));
 
-    const sanitizedExerciseData = {
+    // Dữ liệu cần update (chỉ script và questions)
+    const dataToUpdate = {
       script: exerciseData.script || "",
       questions: sanitizedQuestions,
     };
 
-    // Tham chiếu đến đúng exercise cụ thể
+    // Tham chiếu đến đúng exercise cụ thể bằng ID
     const exerciseDetailRef = ref(
       database,
-      `${BASE_PATH}/${level}/Listening/Topics/${topicTitle}/Exercises/${exerciseTitle}`
+      `${BASE_PATH}/${level}/Listening/Topics/${topicId}/Exercises/${exerciseId}`
     );
-    await set(exerciseDetailRef, sanitizedExerciseData);
-    // Không cần toast ở đây nữa, component sẽ toast khi gọi hàm này thành công
-    // toast.success(`Exercise "${exerciseTitle}" updated successfully.`);
+
+    // Sử dụng update để chỉ cập nhật các trường này
+    await update(exerciseDetailRef, dataToUpdate);
     return true;
   } catch (error) {
     console.error("Error updating listening exercise detail:", error);
-    toast.error(`Failed to update exercise "${exerciseTitle}".`);
+    toast.error(`Failed to update exercise ID "${exerciseId}".`);
     return false;
   }
 };
