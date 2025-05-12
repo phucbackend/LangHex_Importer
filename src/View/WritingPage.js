@@ -1,5 +1,5 @@
-// WritingPage.js
-import React, { useState, useEffect, useCallback, useMemo } from "react"; // Import useMemo
+// WritingPage.js (Corrected Syntax for Ternary Operator)
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import "../css/speaking.css"; // Assuming shared CSS
@@ -7,14 +7,14 @@ import "../css/speaking.css"; // Assuming shared CSS
 import {
   fetchWritingTopics,
   addWritingTopic,
-  editWritingTopic,
-  deleteWritingTopic,
+  editWritingTopicName, // Updated to edit display name, not key
+  deleteWritingTopic, // Deletes by ID
   fetchWritingExercisesForTopic,
   fetchWritingExerciseDetail,
   addWritingExercise,
-  editWritingExerciseTitle,
+  editWritingExerciseDisplayTitle,
   deleteWritingExercise,
-  updateWritingExerciseDetail,
+  updateWritingExerciseScript,
 } from "../Model/WritingService";
 
 const WritingPage = () => {
@@ -22,15 +22,17 @@ const WritingPage = () => {
   const upperLevelId = levelId.toUpperCase();
 
   // --- State for Topics ---
-  const [topics, setTopics] = useState([]);
-  const [selectedTopicTitle, setSelectedTopicTitle] = useState(null);
+  const [topics, setTopics] = useState([]); // Array of { id: string, topicName: string }
+  const [selectedTopic, setSelectedTopic] = useState(null); // Object { id: string, topicName: string }
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
   const [showAddTopicInput, setShowAddTopicInput] = useState(false);
-  const [newTopicTitle, setNewTopicTitle] = useState("");
-  const [topicToEdit, setTopicToEdit] = useState(null);
-  const [editingTopicTitle, setEditingTopicTitle] = useState("");
+  const [newTopicName, setNewTopicName] = useState(""); // For adding Topic (display name)
+
+  const [topicToEdit, setTopicToEdit] = useState(null); // Object { id, topicName } of topic to edit
+  const [editingTopicName, setEditingTopicName] = useState(""); // New display name for topic
   const [showEditTopicModal, setShowEditTopicModal] = useState(false);
-  const [topicToDelete, setTopicToDelete] = useState(null);
+
+  const [topicToDelete, setTopicToDelete] = useState(null); // Object { id, topicName } of topic to delete
   const [showConfirmDeleteTopic, setShowConfirmDeleteTopic] = useState(false);
 
   // --- State for Exercises ---
@@ -38,299 +40,290 @@ const WritingPage = () => {
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [isLoadingExercises, setIsLoadingExercises] = useState(false);
   const [showAddExerciseInput, setShowAddExerciseInput] = useState(false);
-  const [newExerciseTitle, setNewExerciseTitle] = useState("");
+  const [newExerciseTitle, setNewExerciseTitle] = useState(""); // For adding Exercise (display title)
+
   const [exerciseToEdit, setExerciseToEdit] = useState(null);
   const [editingExerciseTitle, setEditingExerciseTitle] = useState("");
   const [showEditExerciseModal, setShowEditExerciseModal] = useState(false);
+
   const [exerciseToDelete, setExerciseToDelete] = useState(null);
   const [showConfirmDeleteExercise, setShowConfirmDeleteExercise] =
     useState(false);
 
-  // --- State for Editing Exercise Detail (only script) ---
-  // Memoize initialEmptyExerciseData
-  const initialEmptyExerciseData = useMemo(() => ({ script: "" }), []); // MODIFIED HERE
-
+  const initialEmptyExerciseDataForDetail = useMemo(() => ({ script: "" }), []);
   const [currentEditingExerciseData, setCurrentEditingExerciseData] = useState(
-    initialEmptyExerciseData
+    initialEmptyExerciseDataForDetail
   );
-  const [initialExerciseDetailState, setInitialExerciseDetailState] =
-    useState(null);
-
-  // --- General Loading/Submitting State ---
+  const [
+    initialExerciseDetailStateForScript,
+    setInitialExerciseDetailStateForScript,
+  ] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // --- Data Fetching Functions ---
 
   const loadTopics = useCallback(async () => {
     setIsLoadingTopics(true);
-    setSelectedTopicTitle(null);
+    setSelectedTopic(null);
     setTopicExercises([]);
     setSelectedExercise(null);
-    setCurrentEditingExerciseData(initialEmptyExerciseData);
-    setInitialExerciseDetailState(null);
+    setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+    setInitialExerciseDetailStateForScript("");
 
     const fetchedTopics = await fetchWritingTopics(upperLevelId);
-    const sortedTopics = fetchedTopics.sort((a, b) =>
-      a.title.localeCompare(b.title)
-    );
-    setTopics(sortedTopics);
+    setTopics(fetchedTopics); // Assumes service sorts them by topicName
     setIsLoadingTopics(false);
-  }, [upperLevelId, initialEmptyExerciseData]); // initialEmptyExerciseData is now stable
+  }, [upperLevelId, initialEmptyExerciseDataForDetail]);
 
   const loadExercisesForSelectedTopic = useCallback(async () => {
-    if (!selectedTopicTitle) {
-      setTopicExercises([]); // Clear exercises if no topic is selected
+    if (!selectedTopic || !selectedTopic.id) {
+      setTopicExercises([]);
       setSelectedExercise(null);
-      setCurrentEditingExerciseData(initialEmptyExerciseData);
-      setInitialExerciseDetailState(null);
+      setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+      setInitialExerciseDetailStateForScript("");
       return;
     }
-
     setIsLoadingExercises(true);
     setSelectedExercise(null);
-    setCurrentEditingExerciseData(initialEmptyExerciseData);
-    setInitialExerciseDetailState(null);
-
+    setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+    setInitialExerciseDetailStateForScript("");
     const fetchedExercises = await fetchWritingExercisesForTopic(
       upperLevelId,
-      selectedTopicTitle
+      selectedTopic.id
     );
     setTopicExercises(fetchedExercises);
     setIsLoadingExercises(false);
-  }, [upperLevelId, selectedTopicTitle, initialEmptyExerciseData]); // initialEmptyExerciseData is now stable
+  }, [upperLevelId, selectedTopic, initialEmptyExerciseDataForDetail]);
 
   const loadExerciseDetail = useCallback(
-    async (exerciseTitle) => {
-      if (!selectedTopicTitle || !exerciseTitle) return;
-
+    async (exerciseIdToLoad) => {
+      if (!selectedTopic || !selectedTopic.id || !exerciseIdToLoad) return;
       setIsSubmitting(true);
       const exerciseDetail = await fetchWritingExerciseDetail(
         upperLevelId,
-        selectedTopicTitle,
-        exerciseTitle
+        selectedTopic.id,
+        exerciseIdToLoad
       );
       setIsSubmitting(false);
-
       if (exerciseDetail) {
         setSelectedExercise(exerciseDetail);
-        setCurrentEditingExerciseData(exerciseDetail);
-        setInitialExerciseDetailState(JSON.stringify(exerciseDetail));
+        setCurrentEditingExerciseData({ script: exerciseDetail.script });
+        setInitialExerciseDetailStateForScript(exerciseDetail.script);
       } else {
         setSelectedExercise(null);
-        setCurrentEditingExerciseData(initialEmptyExerciseData);
-        setInitialExerciseDetailState(null);
-        // No need to await loadExercisesForSelectedTopic here if it's in useEffect dependency
+        setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+        setInitialExerciseDetailStateForScript("");
       }
     },
-    [upperLevelId, selectedTopicTitle, initialEmptyExerciseData] // Removed loadExercisesForSelectedTopic, initialEmptyExerciseData is stable
+    [upperLevelId, selectedTopic, initialEmptyExerciseDataForDetail]
   );
 
-  // --- useEffect Hooks ---
   useEffect(() => {
     loadTopics();
-  }, [loadTopics]); // loadTopics is stable due to initialEmptyExerciseData being memoized
+  }, [loadTopics]);
 
   useEffect(() => {
-    // This effect will run when selectedTopicTitle changes OR when loadExercisesForSelectedTopic definition changes
-    // (which it won't frequently now that initialEmptyExerciseData is memoized)
-    if (selectedTopicTitle) {
+    if (selectedTopic && selectedTopic.id) {
       loadExercisesForSelectedTopic();
     } else {
-      // Clear exercises and selection when topic is deselected
       setTopicExercises([]);
       setSelectedExercise(null);
-      setCurrentEditingExerciseData(initialEmptyExerciseData);
-      setInitialExerciseDetailState(null);
+      setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+      setInitialExerciseDetailStateForScript("");
     }
   }, [
-    selectedTopicTitle,
+    selectedTopic,
     loadExercisesForSelectedTopic,
-    initialEmptyExerciseData,
-  ]); // initialEmptyExerciseData is stable
-
-  // --- Handlers for Topics ---
+    initialEmptyExerciseDataForDetail,
+  ]);
 
   const handleSelectTopic = (topic) => {
-    if (!isSubmitting && topic && topic.title) {
-      if (topic.title !== selectedTopicTitle) {
-        setSelectedTopicTitle(topic.title);
+    if (!isSubmitting && topic && topic.id) {
+      if (!selectedTopic || topic.id !== selectedTopic.id) {
+        setSelectedTopic(topic);
         setShowAddExerciseInput(false);
       }
     }
   };
 
-  const handleAddTopic = async () => {
-    const trimmedTitle = newTopicTitle.trim();
-    if (!trimmedTitle) {
-      toast.warn("Topic title cannot be empty.");
+  const handleAddTopicOriginal = async () => {
+    const trimmedName = newTopicName.trim();
+    if (!trimmedName) {
+      toast.warn("Topic name cannot be empty.");
       return;
     }
     setIsSubmitting(true);
-    const success = await addWritingTopic(upperLevelId, trimmedTitle);
-    if (success) {
-      setNewTopicTitle("");
+    const result = await addWritingTopic(upperLevelId, trimmedName);
+    if (result.success) {
+      setNewTopicName("");
       setShowAddTopicInput(false);
-      await loadTopics(); // loadTopics itself is stable
+      await loadTopics();
     }
     setIsSubmitting(false);
   };
 
   const handleOpenEditTopicModal = (topic) => {
-    if (topic && topic.title) {
-      setTopicToEdit(topic.title);
-      setEditingTopicTitle(topic.title);
+    if (topic && topic.id) {
+      setTopicToEdit(topic);
+      setEditingTopicName(topic.topicName);
       setShowEditTopicModal(true);
     }
   };
 
-  const handleEditTopic = async () => {
-    const trimmedNewTitle = editingTopicTitle.trim();
-    if (!topicToEdit || !trimmedNewTitle || topicToEdit === trimmedNewTitle) {
-      if (topicToEdit === trimmedNewTitle) setShowEditTopicModal(false);
+  const handleEditTopicOriginal = async () => {
+    const trimmedNewName = editingTopicName.trim();
+    if (
+      !topicToEdit ||
+      !topicToEdit.id ||
+      !trimmedNewName ||
+      topicToEdit.topicName === trimmedNewName
+    ) {
+      if (topicToEdit && topicToEdit.topicName === trimmedNewName)
+        setShowEditTopicModal(false);
       else toast.warn("Invalid input for renaming topic.");
       return;
     }
-
     setIsSubmitting(true);
-    const success = await editWritingTopic(
+    const success = await editWritingTopicName(
       upperLevelId,
-      topicToEdit,
-      trimmedNewTitle
+      topicToEdit.id,
+      trimmedNewName
     );
     setIsSubmitting(false);
-
     if (success) {
       setShowEditTopicModal(false);
-      if (selectedTopicTitle === topicToEdit) {
-        setSelectedTopicTitle(trimmedNewTitle); // This will trigger the useEffect for exercises
-      } else {
-        await loadTopics(); // If a non-selected topic was edited, reload all
+      if (selectedTopic && selectedTopic.id === topicToEdit.id) {
+        setSelectedTopic((prev) => ({ ...prev, topicName: trimmedNewName }));
       }
+      await loadTopics();
+      setTopicToEdit(null);
     }
   };
 
-  const handleDeleteTopic = (topicTitle) => {
-    if (topicTitle) {
-      setTopicToDelete(topicTitle);
+  const handleDeleteTopicOriginal = (topic) => {
+    if (topic && topic.id) {
+      setTopicToDelete(topic);
       setShowConfirmDeleteTopic(true);
     }
   };
 
-  const confirmDeleteTopic = async () => {
-    if (topicToDelete) {
+  const confirmDeleteTopicOriginal = async () => {
+    if (topicToDelete && topicToDelete.id) {
       setIsSubmitting(true);
-      const success = await deleteWritingTopic(upperLevelId, topicToDelete);
+      const success = await deleteWritingTopic(upperLevelId, topicToDelete.id);
       if (success) {
         setShowConfirmDeleteTopic(false);
         setTopicToDelete(null);
+        if (selectedTopic && selectedTopic.id === topicToDelete.id) {
+          setSelectedTopic(null);
+        }
         await loadTopics();
       }
       setIsSubmitting(false);
     }
   };
-
   const cancelDeleteTopic = () => {
     setTopicToDelete(null);
     setShowConfirmDeleteTopic(false);
   };
 
-  // --- Handlers for Exercises ---
-
   const handleSelectExercise = (exercise) => {
-    if (!isSubmitting && exercise && exercise.title) {
-      if (!selectedExercise || exercise.title !== selectedExercise.title) {
-        loadExerciseDetail(exercise.title); // loadExerciseDetail is stable
+    if (!isSubmitting && exercise && exercise.id) {
+      if (!selectedExercise || exercise.id !== selectedExercise.id) {
+        loadExerciseDetail(exercise.id);
       }
     }
   };
 
-  const handleAddExercise = async () => {
+  const handleAddExerciseOriginal = async () => {
     const trimmedTitle = newExerciseTitle.trim();
     if (!trimmedTitle) {
       toast.warn("Exercise title cannot be empty.");
       return;
     }
-    if (!selectedTopicTitle) {
+    if (!selectedTopic || !selectedTopic.id) {
       toast.error("Cannot add exercise: No topic selected.");
       return;
     }
-
     setIsSubmitting(true);
-    const success = await addWritingExercise(
+    const result = await addWritingExercise(
       upperLevelId,
-      selectedTopicTitle,
+      selectedTopic.id,
       trimmedTitle
     );
-    if (success) {
+    if (result.success) {
       setNewExerciseTitle("");
       setShowAddExerciseInput(false);
-      await loadExercisesForSelectedTopic(); // loadExercisesForSelectedTopic is stable
+      await loadExercisesForSelectedTopic();
     }
     setIsSubmitting(false);
   };
 
   const handleOpenEditExerciseModal = (exercise) => {
-    if (exercise && exercise.title) {
-      setExerciseToEdit(exercise.title);
+    if (exercise && exercise.id) {
+      setExerciseToEdit(exercise);
       setEditingExerciseTitle(exercise.title);
       setShowEditExerciseModal(true);
     }
   };
 
-  const handleEditExerciseTitle = async () => {
+  const handleEditExerciseTitleOriginal = async () => {
     const trimmedNewTitle = editingExerciseTitle.trim();
     if (
       !exerciseToEdit ||
+      !exerciseToEdit.id ||
       !trimmedNewTitle ||
-      exerciseToEdit === trimmedNewTitle
+      exerciseToEdit.title === trimmedNewTitle
     ) {
-      if (exerciseToEdit === trimmedNewTitle) setShowEditExerciseModal(false);
+      if (exerciseToEdit && exerciseToEdit.title === trimmedNewTitle)
+        setShowEditExerciseModal(false);
       else toast.warn("Invalid input for renaming exercise.");
       return;
     }
-    if (!selectedTopicTitle) return;
+    if (!selectedTopic || !selectedTopic.id) return;
 
     setIsSubmitting(true);
-    const success = await editWritingExerciseTitle(
+    const success = await editWritingExerciseDisplayTitle(
       upperLevelId,
-      selectedTopicTitle,
-      exerciseToEdit,
+      selectedTopic.id,
+      exerciseToEdit.id,
       trimmedNewTitle
     );
     setIsSubmitting(false);
-
     if (success) {
       setShowEditExerciseModal(false);
-      if (selectedExercise && selectedExercise.title === exerciseToEdit) {
-        setSelectedExercise(null); // Deselect if the edited one was selected
-        setCurrentEditingExerciseData(initialEmptyExerciseData);
-        setInitialExerciseDetailState(null);
+      if (selectedExercise && selectedExercise.id === exerciseToEdit.id) {
+        setSelectedExercise((prev) => ({ ...prev, title: trimmedNewTitle }));
       }
       await loadExercisesForSelectedTopic();
+      setExerciseToEdit(null);
     }
   };
 
-  const handleDeleteExercise = (exerciseTitle) => {
-    if (exerciseTitle) {
-      setExerciseToDelete(exerciseTitle);
+  const handleDeleteExerciseOriginal = (exercise) => {
+    if (exercise && exercise.id) {
+      setExerciseToDelete(exercise);
       setShowConfirmDeleteExercise(true);
     }
   };
 
-  const confirmDeleteExercise = async () => {
-    if (exerciseToDelete && selectedTopicTitle) {
+  const confirmDeleteExerciseOriginal = async () => {
+    if (
+      exerciseToDelete &&
+      exerciseToDelete.id &&
+      selectedTopic &&
+      selectedTopic.id
+    ) {
       setIsSubmitting(true);
       const success = await deleteWritingExercise(
         upperLevelId,
-        selectedTopicTitle,
-        exerciseToDelete
+        selectedTopic.id,
+        exerciseToDelete.id
       );
       if (success) {
         setShowConfirmDeleteExercise(false);
-        if (selectedExercise && selectedExercise.title === exerciseToDelete) {
+        if (selectedExercise && selectedExercise.id === exerciseToDelete.id) {
           setSelectedExercise(null);
-          setCurrentEditingExerciseData(initialEmptyExerciseData);
-          setInitialExerciseDetailState(null);
+          setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+          setInitialExerciseDetailStateForScript("");
         }
         setExerciseToDelete(null);
         await loadExercisesForSelectedTopic();
@@ -338,46 +331,36 @@ const WritingPage = () => {
       setIsSubmitting(false);
     }
   };
-
   const cancelDeleteExercise = () => {
     setExerciseToDelete(null);
     setShowConfirmDeleteExercise(false);
   };
 
-  // --- Handlers for Editing Exercise Detail (only script) ---
-
   const handleScriptChange = (e) => {
-    setCurrentEditingExerciseData((prev) => ({
-      ...prev,
-      script: e.target.value,
-    }));
+    setCurrentEditingExerciseData({ script: e.target.value });
   };
 
-  const handleSaveChanges = async () => {
-    if (!selectedTopicTitle || !selectedExercise || !selectedExercise.title) {
-      toast.warn("Please select a topic and an exercise before saving.");
+  const handleSaveChangesOriginal = async () => {
+    if (
+      !selectedTopic ||
+      !selectedTopic.id ||
+      !selectedExercise ||
+      !selectedExercise.id
+    ) {
+      toast.warn("Please select a topic and an exercise before saving script.");
       return;
     }
-
-    if (!currentEditingExerciseData.script.trim()) {
-      toast.warn("Writing script cannot be empty.");
-      return;
-    }
-
     setIsSubmitting(true);
-    const success = await updateWritingExerciseDetail(
+    const success = await updateWritingExerciseScript(
       upperLevelId,
-      selectedTopicTitle,
-      selectedExercise.title,
-      currentEditingExerciseData
+      selectedTopic.id,
+      selectedExercise.id,
+      currentEditingExerciseData.script
     );
     if (success) {
-      const updatedExerciseData = {
-        ...currentEditingExerciseData,
-        title: selectedExercise.title,
-      };
-      setInitialExerciseDetailState(JSON.stringify(updatedExerciseData));
-      setSelectedExercise(updatedExerciseData);
+      const newScript = currentEditingExerciseData.script;
+      setSelectedExercise((prev) => ({ ...prev, script: newScript }));
+      setInitialExerciseDetailStateForScript(newScript);
       toast.success("Changes saved successfully!");
     }
     setIsSubmitting(false);
@@ -385,9 +368,8 @@ const WritingPage = () => {
 
   const hasChanges =
     selectedExercise &&
-    JSON.stringify(currentEditingExerciseData) !== initialExerciseDetailState;
+    currentEditingExerciseData.script !== initialExerciseDetailStateForScript;
 
-  // --- Render Logic ---
   return (
     <div
       className={`speaking-container ${
@@ -415,9 +397,9 @@ const WritingPage = () => {
           <div style={{ marginBottom: "16px" }}>
             <input
               type="text"
-              value={newTopicTitle}
-              onChange={(e) => setNewTopicTitle(e.target.value)}
-              placeholder="Enter new topic title..."
+              value={newTopicName}
+              onChange={(e) => setNewTopicName(e.target.value)}
+              placeholder="Enter new topic name..."
               style={{
                 padding: "8px",
                 width: "calc(70% - 5px)",
@@ -427,8 +409,8 @@ const WritingPage = () => {
             />
             <button
               className="add-question-btn-save"
-              onClick={handleAddTopic}
-              disabled={isSubmitting || !newTopicTitle.trim()}
+              onClick={handleAddTopicOriginal}
+              disabled={isSubmitting || !newTopicName.trim()}
               style={{ width: "auto", padding: "8px 12px" }}
             >
               Save
@@ -442,10 +424,8 @@ const WritingPage = () => {
             {Array.isArray(topics) && topics.length > 0
               ? topics.map((topic) => (
                   <li
-                    key={topic.title}
-                    className={
-                      selectedTopicTitle === topic.title ? "active" : ""
-                    }
+                    key={topic.id}
+                    className={selectedTopic?.id === topic.id ? "active" : ""}
                     onClick={() => handleSelectTopic(topic)}
                     style={{ pointerEvents: isSubmitting ? "none" : "auto" }}
                   >
@@ -456,7 +436,7 @@ const WritingPage = () => {
                         wordBreak: "break-word",
                       }}
                     >
-                      {topic.title}
+                      {topic.topicName}
                     </span>
                     <div className="edit-delete-btn-container">
                       <button
@@ -467,14 +447,14 @@ const WritingPage = () => {
                         className="edit-topic"
                         style={{ cursor: "pointer" }}
                         disabled={isSubmitting}
-                        title="Edit Topic Title"
+                        title="Edit Topic Name"
                       >
                         📝
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteTopic(topic.title);
+                          handleDeleteTopicOriginal(topic);
                         }}
                         className="delete-topic"
                         style={{ cursor: "pointer" }}
@@ -489,9 +469,10 @@ const WritingPage = () => {
               : !isLoadingTopics && <li>No topics found.</li>}
           </ul>
         )}
-      </div>{" "}
+      </div>
+
       <div className="topic-detail">
-        {selectedTopicTitle ? (
+        {selectedTopic ? (
           <>
             <div className="exercise-section" style={{ marginBottom: "30px" }}>
               <div
@@ -502,7 +483,7 @@ const WritingPage = () => {
                   marginBottom: "15px",
                 }}
               >
-                <h2>{selectedTopicTitle} - Exercises</h2>
+                <h2>{selectedTopic.topicName} - Exercises</h2>
                 <button
                   className="add-topic"
                   onClick={() =>
@@ -539,7 +520,7 @@ const WritingPage = () => {
                   />
                   <button
                     className="add-question-btn-save"
-                    onClick={handleAddExercise}
+                    onClick={handleAddExerciseOriginal}
                     disabled={isSubmitting || !newExerciseTitle.trim()}
                     style={{ width: "auto", padding: "8px 12px" }}
                   >
@@ -555,11 +536,9 @@ const WritingPage = () => {
                   {Array.isArray(topicExercises) && topicExercises.length > 0
                     ? topicExercises.map((exercise) => (
                         <li
-                          key={exercise.title}
+                          key={exercise.id}
                           className={
-                            selectedExercise?.title === exercise.title
-                              ? "active"
-                              : ""
+                            selectedExercise?.id === exercise.id ? "active" : ""
                           }
                           onClick={() => handleSelectExercise(exercise)}
                           style={{
@@ -591,7 +570,7 @@ const WritingPage = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteExercise(exercise.title);
+                                handleDeleteExerciseOriginal(exercise);
                               }}
                               className="delete-topic"
                               style={{ cursor: "pointer" }}
@@ -608,7 +587,8 @@ const WritingPage = () => {
                       )}
                 </ul>
               )}
-            </div>{" "}
+            </div>
+            {/* CORRECTED TERNARY OPERATOR FOR SELECTED EXERCISE */}
             {selectedExercise ? (
               <div
                 className="exercise-detail-editor"
@@ -626,7 +606,7 @@ const WritingPage = () => {
                   {hasChanges && (
                     <button
                       className="add-question-btn-save"
-                      onClick={handleSaveChanges}
+                      onClick={handleSaveChangesOriginal}
                       disabled={isSubmitting}
                       style={{
                         backgroundColor: "#4CAF50",
@@ -669,6 +649,8 @@ const WritingPage = () => {
                 </div>
               </div>
             ) : (
+              // This is the 'else' part for selectedExercise.
+              // It directly contains the conditional rendering for !isLoadingExercises.
               !isLoadingExercises && (
                 <p
                   style={{
@@ -680,60 +662,68 @@ const WritingPage = () => {
                   Select an exercise from the list above to view or edit its
                   script, or add a new one.
                 </p>
-              )
-            )}
+              ) // End of the conditional rendering. This is the entire "else" content.
+            )}{" "}
+            {/* End of selectedExercise ternary operator */}
           </>
         ) : (
           <p>
-            Select a writing topic from the sidebar to manage its exercises.
+            {" "}
+            Select a writing topic from the sidebar to manage its exercises.{" "}
           </p>
         )}
-      </div>{" "}
-      {showEditTopicModal && (
+      </div>
+
+      {showEditTopicModal && topicToEdit && (
         <div className="edit-topic-modal">
           <div className="modal-content">
-            <h3>Edit Topic Title</h3>
+            <h3>Edit Topic Name</h3>
             <input
               type="text"
-              value={editingTopicTitle}
-              onChange={(e) => setEditingTopicTitle(e.target.value)}
-              placeholder="Enter new topic title..."
+              value={editingTopicName}
+              onChange={(e) => setEditingTopicName(e.target.value)}
+              placeholder="Enter new topic name..."
               disabled={isSubmitting}
             />
             <div style={{ marginTop: "15px" }}>
               <button
                 className="btn-modal-save"
-                onClick={handleEditTopic}
+                onClick={handleEditTopicOriginal}
                 disabled={
                   isSubmitting ||
-                  !editingTopicTitle.trim() ||
-                  editingTopicTitle.trim() === topicToEdit
+                  !editingTopicName.trim() ||
+                  editingTopicName.trim() === topicToEdit.topicName
                 }
               >
-                {isSubmitting ? "Saving..." : "Save"}
+                {" "}
+                {isSubmitting ? "Saving..." : "Save"}{" "}
               </button>
               <button
                 className="btn-modal-cancel"
                 onClick={() => !isSubmitting && setShowEditTopicModal(false)}
                 disabled={isSubmitting}
               >
-                Cancel
+                {" "}
+                Cancel{" "}
               </button>
             </div>
           </div>
         </div>
       )}
-      {showConfirmDeleteTopic && (
+      {showConfirmDeleteTopic && topicToDelete && (
         <div className="confirm-delete-modal">
           <div className="modal-content">
-            <h3>Delete Topic "{topicToDelete}"?</h3>
+            <h3>Delete Topic "{topicToDelete.topicName}"?</h3>
             <p>
-              This will delete the topic and <strong>all its exercises</strong>.
-              This action cannot be undone.
+              {" "}
+              This will delete the topic and <strong>
+                all its exercises
+              </strong>{" "}
+              (ID: {topicToDelete.id}). This action cannot be undone.{" "}
             </p>
             <div style={{ marginTop: "15px" }}>
               <button
-                onClick={confirmDeleteTopic}
+                onClick={confirmDeleteTopicOriginal}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >
@@ -750,11 +740,13 @@ const WritingPage = () => {
           </div>
         </div>
       )}
-      {showEditExerciseModal && (
+
+      {showEditExerciseModal && exerciseToEdit && (
         <div className="edit-topic-modal">
           <div className="modal-content">
             <h3>Edit Exercise Title</h3>
-            <p>Topic: {selectedTopicTitle}</p>
+            <p>Topic: {selectedTopic?.topicName}</p>
+            <p>Exercise (current): {exerciseToEdit?.title}</p>
             <input
               type="text"
               value={editingExerciseTitle}
@@ -765,11 +757,12 @@ const WritingPage = () => {
             <div style={{ marginTop: "15px" }}>
               <button
                 className="btn-modal-save"
-                onClick={handleEditExerciseTitle}
+                onClick={handleEditExerciseTitleOriginal}
                 disabled={
                   isSubmitting ||
                   !editingExerciseTitle.trim() ||
-                  editingExerciseTitle.trim() === exerciseToEdit
+                  (exerciseToEdit &&
+                    editingExerciseTitle.trim() === exerciseToEdit.title)
                 }
               >
                 {isSubmitting ? "Saving..." : "Save"}
@@ -785,18 +778,19 @@ const WritingPage = () => {
           </div>
         </div>
       )}
-      {showConfirmDeleteExercise && (
+      {showConfirmDeleteExercise && exerciseToDelete && (
         <div className="confirm-delete-modal">
           <div className="modal-content">
-            <h3>Delete Exercise "{exerciseToDelete}"?</h3>
-            <p>Topic: {selectedTopicTitle}</p>
+            <h3>Delete Exercise "{exerciseToDelete?.title}"?</h3>
+            <p>Topic: {selectedTopic?.topicName}</p>
             <p>
-              This will delete the exercise script. This action cannot be
-              undone.
+              {" "}
+              This will delete the exercise (ID: {exerciseToDelete?.id}). This
+              action cannot be undone.{" "}
             </p>
             <div style={{ marginTop: "15px" }}>
               <button
-                onClick={confirmDeleteExercise}
+                onClick={confirmDeleteExerciseOriginal}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >

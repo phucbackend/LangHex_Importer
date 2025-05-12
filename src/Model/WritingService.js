@@ -1,23 +1,26 @@
 // WritingService.js
 import { database } from "../firebaseConfig";
-import { ref, get, set } from "firebase/database";
+import { ref, get, set, push, update } from "firebase/database";
 import { toast } from "react-toastify";
 
-// Base path in Firebase, changed to Writing
 const BASE_PATH = "Lessons/Levels";
 
-// --- Topic Management --- (Similar to Reading/Listening)
+// --- Topic Management (Sử dụng ID cho Topics) ---
 
-// Fetch writing topics for a given level (Only fetches title)
 export const fetchWritingTopics = async (level) => {
   try {
-    // Change path to Writing
     const topicsRef = ref(database, `${BASE_PATH}/${level}/Writing/Topics`);
     const snapshot = await get(topicsRef);
     if (snapshot.exists()) {
       const data = snapshot.val();
-      // Return an array of topic titles
-      const topicsArray = Object.keys(data).map((title) => ({ title }));
+      const topicsArray = Object.keys(data).map((id) => ({
+        id: id, // ID của Topic (key của node)
+        topicName: data[id].topicName || data[id].title || id, // Tên hiển thị của Topic, ưu tiên 'topicName', rồi 'title', fallback là id
+      }));
+      // Sắp xếp theo topicName để hiển thị nhất quán
+      topicsArray.sort((a, b) =>
+        a.topicName.toLowerCase() > b.topicName.toLowerCase() ? 1 : -1
+      );
       return topicsArray;
     } else {
       return [];
@@ -29,108 +32,106 @@ export const fetchWritingTopics = async (level) => {
   }
 };
 
-// Add a new writing topic (initialized with true value)
-export const addWritingTopic = async (level, newTopicTitle) => {
-  const trimmedTitle = newTopicTitle.trim();
-  if (!trimmedTitle) {
-    toast.warn("Topic title cannot be empty.");
-    return false;
+export const addWritingTopic = async (level, newTopicName) => {
+  const trimmedName = newTopicName.trim();
+  if (!trimmedName) {
+    toast.warn("Topic name cannot be empty.");
+    return { success: false };
   }
   try {
-    // --- Duplicate check section ---
-    const compareTitle = trimmedTitle.replace(/\s+/g, "").toLowerCase();
-    // Change path to Writing
-    const topicsRef = ref(database, `${BASE_PATH}/${level}/Writing/Topics`);
-    const snapshot = await get(topicsRef);
+    const topicsContainerRef = ref(
+      database,
+      `${BASE_PATH}/${level}/Writing/Topics`
+    );
+
+    // Kiểm tra trùng lặp tên Topic (display name)
+    const snapshot = await get(topicsContainerRef);
     if (snapshot.exists()) {
       const topicsData = snapshot.val();
-      const existingTopicsNormalized = Object.keys(topicsData).map((topic) =>
-        topic.trim().replace(/\s+/g, "").toLowerCase()
-      );
-      if (existingTopicsNormalized.includes(compareTitle)) {
-        toast.warn(`Topic "${newTopicTitle}" already exists.`);
-        return false;
+      for (const id in topicsData) {
+        const existingName = topicsData[id].topicName || topicsData[id].title;
+        if (
+          existingName &&
+          existingName.trim().toLowerCase() === trimmedName.toLowerCase()
+        ) {
+          toast.warn(`Topic with name "${trimmedName}" already exists.`);
+          return { success: false };
+        }
       }
     }
-    // --- End duplicate check ---
 
-    // Create new topic with trimmed name and value true
-    const topicRef = ref(
-      database,
-      // Change path to Writing
-      `${BASE_PATH}/${level}/Writing/Topics/${trimmedTitle}`
-    );
-    await set(topicRef, true); // Value is true
-
-    toast.success(`Added new writing topic: ${trimmedTitle}`);
-    return true;
+    const newTopicRef = push(topicsContainerRef); // Firebase tạo ID duy nhất
+    const newTopicId = newTopicRef.key;
+    const topicData = {
+      topicName: trimmedName, // Lưu tên hiển thị
+      Exercises: {}, // Khởi tạo node Exercises rỗng
+    };
+    await set(newTopicRef, topicData);
+    toast.success(`Added new writing topic: ${trimmedName}`);
+    return { success: true, id: newTopicId, topicName: trimmedName };
   } catch (error) {
     console.error("Error adding writing topic:", error);
-    toast.error(
-      `Failed to add topic: "${newTopicTitle}". Check console for details.`
-    );
-    return false;
+    toast.error(`Failed to add topic: "${trimmedName}".`);
+    return { success: false };
   }
 };
 
-// Edit an existing writing topic title (rename) - Logic remains the same
-export const editWritingTopic = async (level, oldTopicTitle, newTopicTitle) => {
-  const trimmedNewTitle = newTopicTitle.trim();
-  if (!trimmedNewTitle || trimmedNewTitle === oldTopicTitle) {
-    toast.warn("New topic title cannot be empty or same as old title.");
+// Sửa tên hiển thị của Topic, ID không đổi
+export const editWritingTopicName = async (level, topicId, newTopicName) => {
+  const trimmedNewName = newTopicName.trim();
+  if (!trimmedNewName) {
+    toast.warn("New topic name cannot be empty.");
     return false;
   }
   try {
-    // Change path to Writing
-    const newTopicCheckRef = ref(
+    // Optional: Kiểm tra xem newTopicName có trùng với topic nào khác không (ngoại trừ topic hiện tại)
+    const topicsContainerRef = ref(
       database,
-      `${BASE_PATH}/${level}/Writing/Topics/${trimmedNewTitle}`
+      `${BASE_PATH}/${level}/Writing/Topics`
     );
-    const newSnapshot = await get(newTopicCheckRef);
-    if (newSnapshot.exists()) {
-      toast.warn(`Topic "${trimmedNewTitle}" already exists.`);
-      return false;
-    }
-
-    // Change path to Writing
-    const oldTopicRef = ref(
-      database,
-      `${BASE_PATH}/${level}/Writing/Topics/${oldTopicTitle}`
-    );
-    const snapshot = await get(oldTopicRef);
-
+    const snapshot = await get(topicsContainerRef);
     if (snapshot.exists()) {
-      const topicData = snapshot.val();
-      // Change path to Writing
-      const newTopicRef = ref(
-        database,
-        `${BASE_PATH}/${level}/Writing/Topics/${trimmedNewTitle}`
-      );
-      await set(newTopicRef, topicData); // Copy all data (including Exercises if any)
-      await set(oldTopicRef, null); // Delete old topic
-      toast.success(`Renamed topic to "${trimmedNewTitle}"`);
-      return true;
-    } else {
-      toast.warn(`Topic "${oldTopicTitle}" not found.`);
-      return false;
+      const topicsData = snapshot.val();
+      for (const id in topicsData) {
+        if (id !== topicId) {
+          // Bỏ qua topic đang sửa
+          const existingName = topicsData[id].topicName || topicsData[id].title;
+          if (
+            existingName &&
+            existingName.trim().toLowerCase() === trimmedNewName.toLowerCase()
+          ) {
+            toast.warn(
+              `Another topic with the name "${trimmedNewName}" already exists.`
+            );
+            return false;
+          }
+        }
+      }
     }
+
+    const topicNameRef = ref(
+      database,
+      `${BASE_PATH}/${level}/Writing/Topics/${topicId}/topicName` // Hoặc /title nếu bạn dùng field đó
+    );
+    await set(topicNameRef, trimmedNewName);
+    toast.success(`Renamed topic to "${trimmedNewName}"`);
+    return true;
   } catch (error) {
-    console.error("Error editing writing topic:", error);
+    console.error("Error editing writing topic name:", error);
     toast.error("Failed to rename topic.");
     return false;
   }
 };
 
-// Delete a writing topic (including all exercises within) - Logic remains the same
-export const deleteWritingTopic = async (level, topicTitle) => {
+// Xóa Topic bằng ID
+export const deleteWritingTopic = async (level, topicId) => {
   try {
-    // Change path to Writing
     const topicRef = ref(
       database,
-      `${BASE_PATH}/${level}/Writing/Topics/${topicTitle}`
+      `${BASE_PATH}/${level}/Writing/Topics/${topicId}`
     );
-    await set(topicRef, null); // Or use remove(topicRef)
-    toast.success(`Deleted topic: ${topicTitle}`);
+    await set(topicRef, null);
+    toast.success(`Deleted topic (ID: ${topicId})`);
     return true;
   } catch (error) {
     console.error("Error deleting writing topic:", error);
@@ -139,190 +140,158 @@ export const deleteWritingTopic = async (level, topicTitle) => {
   }
 };
 
-// --- Exercise Management --- (Similar logic to Reading, but no questions field)
+// --- Exercise Management (Sử dụng topicId thay vì topicTitle) ---
 
-// Fetch exercises for a specific writing topic (Only fetches title)
-export const fetchWritingExercisesForTopic = async (level, topicTitle) => {
+export const fetchWritingExercisesForTopic = async (level, topicId) => {
+  // Nhận topicId
   try {
-    // Change path to Writing
     const exercisesRef = ref(
       database,
-      `${BASE_PATH}/${level}/Writing/Topics/${topicTitle}/Exercises`
+      `${BASE_PATH}/${level}/Writing/Topics/${topicId}/Exercises` // Sử dụng topicId
     );
     const snapshot = await get(exercisesRef);
     if (snapshot.exists()) {
       const data = snapshot.val();
-      const exercisesArray = Object.keys(data).map((title) => ({ title }));
+      const exercisesArray = Object.keys(data).map((id) => ({
+        id: id,
+        title: data[id].title || id, // title của Exercise
+      }));
       exercisesArray.sort((a, b) => a.title.localeCompare(b.title));
       return exercisesArray;
     } else {
       return [];
     }
   } catch (error) {
-    console.error(`Error fetching exercises for topic ${topicTitle}:`, error);
-    toast.error(`Failed to fetch exercises for topic "${topicTitle}".`);
+    console.error(`Error fetching exercises for topic ID ${topicId}:`, error);
+    toast.error(`Failed to fetch exercises for the selected topic.`);
     return [];
   }
 };
 
-// Fetch detail (script) of a specific writing exercise
 export const fetchWritingExerciseDetail = async (
   level,
-  topicTitle,
-  exerciseTitle
+  topicId, // Nhận topicId
+  exerciseId
 ) => {
   try {
-    // Change path to Writing
     const exerciseRef = ref(
       database,
-      `${BASE_PATH}/${level}/Writing/Topics/${topicTitle}/Exercises/${exerciseTitle}`
+      `${BASE_PATH}/${level}/Writing/Topics/${topicId}/Exercises/${exerciseId}` // Sử dụng topicId
     );
+    // ... (logic còn lại giữ nguyên)
     const snapshot = await get(exerciseRef);
     if (snapshot.exists()) {
       const exerciseRaw = snapshot.val();
-      // Standardize returned data, only script
       const exerciseDetail = {
-        title: exerciseTitle,
-        script: exerciseRaw?.script || "", // Only script field
+        id: exerciseId,
+        title: exerciseRaw?.title || exerciseId,
+        script: exerciseRaw?.script || "",
       };
       return exerciseDetail;
     } else {
       toast.warn(
-        `Exercise "${exerciseTitle}" not found in topic "${topicTitle}".`
+        `Exercise with ID "${exerciseId}" not found in the selected topic.`
       );
       return null;
     }
   } catch (error) {
     console.error(
-      `Error fetching detail for exercise ${exerciseTitle}:`,
+      `Error fetching detail for exercise ID ${exerciseId}:`,
       error
     );
-    toast.error(`Failed to fetch details for exercise "${exerciseTitle}".`);
+    toast.error(`Failed to fetch details for exercise ID "${exerciseId}".`);
     return null;
   }
 };
 
-// Add a new writing exercise to a topic
 export const addWritingExercise = async (
   level,
-  topicTitle,
-  newExerciseTitle
+  topicId, // Nhận topicId
+  displayTitle // title của Exercise
 ) => {
-  const trimmedTitle = newExerciseTitle.trim();
-  if (!trimmedTitle) {
-    toast.warn("Exercise title cannot be empty.");
-    return false;
+  const trimmedDisplayTitle = displayTitle.trim();
+  if (!trimmedDisplayTitle) {
+    toast.warn("Exercise display title cannot be empty.");
+    return { success: false };
   }
   try {
-    // Check for duplicate exercise title within the same topic
-    // Change path to Writing
-    const exercisesRef = ref(
+    const exercisesContainerRef = ref(
       database,
-      `${BASE_PATH}/${level}/Writing/Topics/${topicTitle}/Exercises`
+      `${BASE_PATH}/${level}/Writing/Topics/${topicId}/Exercises` // Sử dụng topicId
     );
-    const snapshot = await get(exercisesRef);
-    if (snapshot.exists()) {
-      const exercisesData = snapshot.val();
-      const existingTitles = Object.keys(exercisesData).map((t) =>
-        t.trim().toLowerCase()
-      );
-      if (existingTitles.includes(trimmedTitle.toLowerCase())) {
-        toast.warn(`Exercise "${trimmedTitle}" already exists in this topic.`);
-        return false;
+    // ... (logic kiểm tra trùng lặp và thêm exercise giữ nguyên)
+    const existingExercisesSnapshot = await get(exercisesContainerRef);
+    if (existingExercisesSnapshot.exists()) {
+      const exercisesData = existingExercisesSnapshot.val();
+      for (const id in exercisesData) {
+        if (
+          exercisesData[id].title &&
+          exercisesData[id].title.toLowerCase() ===
+            trimmedDisplayTitle.toLowerCase()
+        ) {
+          toast.warn(
+            `An exercise with the title "${trimmedDisplayTitle}" already exists in this topic.`
+          );
+          return { success: false };
+        }
       }
     }
-
-    // Add new exercise with default empty structure (only script)
-    // Change path to Writing
-    const newExerciseRef = ref(
-      database,
-      `${BASE_PATH}/${level}/Writing/Topics/${topicTitle}/Exercises/${trimmedTitle}`
-    );
-    // Change default data structure
+    const newExerciseRef = push(exercisesContainerRef);
+    const newExerciseId = newExerciseRef.key;
     const defaultExerciseData = {
-      script: "", // Only script field
+      title: trimmedDisplayTitle,
+      script: "",
     };
     await set(newExerciseRef, defaultExerciseData);
-    toast.success(`Added new exercise: ${trimmedTitle}`);
-    return true;
+    toast.success(`Added new exercise: ${trimmedDisplayTitle}`);
+    return { success: true, id: newExerciseId, title: trimmedDisplayTitle };
   } catch (error) {
     console.error("Error adding writing exercise:", error);
-    toast.error(`Failed to add exercise: ${trimmedTitle}`);
-    return false;
+    toast.error(`Failed to add exercise: ${trimmedDisplayTitle}`);
+    return { success: false };
   }
 };
 
-// Edit an existing writing exercise title (rename) within a topic
-export const editWritingExerciseTitle = async (
+export const editWritingExerciseDisplayTitle = async (
   level,
-  topicTitle,
-  oldExerciseTitle,
-  newExerciseTitle
+  topicId, // Nhận topicId
+  exerciseId,
+  newDisplayTitle
 ) => {
-  const trimmedNewTitle = newExerciseTitle.trim();
-  if (!trimmedNewTitle || trimmedNewTitle === oldExerciseTitle) {
-    toast.warn("New exercise title cannot be empty or same as old title.");
+  const trimmedNewTitle = newDisplayTitle.trim();
+  if (!trimmedNewTitle) {
+    toast.warn("New exercise display title cannot be empty.");
     return false;
   }
   try {
-    // Check if new title already exists within the same topic
-    // Change path to Writing
-    const newExerciseCheckRef = ref(
+    const exerciseTitleFieldRef = ref(
       database,
-      `${BASE_PATH}/${level}/Writing/Topics/${topicTitle}/Exercises/${trimmedNewTitle}`
+      `${BASE_PATH}/${level}/Writing/Topics/${topicId}/Exercises/${exerciseId}/title` // Sử dụng topicId
     );
-    const newSnapshot = await get(newExerciseCheckRef);
-    if (newSnapshot.exists()) {
-      toast.warn(`Exercise "${trimmedNewTitle}" already exists in this topic.`);
-      return false;
-    }
-
-    // Get old exercise data
-    // Change path to Writing
-    const oldExerciseRef = ref(
-      database,
-      `${BASE_PATH}/${level}/Writing/Topics/${topicTitle}/Exercises/${oldExerciseTitle}`
-    );
-    const snapshot = await get(oldExerciseRef);
-
-    if (snapshot.exists()) {
-      const exerciseData = snapshot.val();
-      // Create new exercise node with old data
-      // Change path to Writing
-      const newExerciseRef = ref(
-        database,
-        `${BASE_PATH}/${level}/Writing/Topics/${topicTitle}/Exercises/${trimmedNewTitle}`
-      );
-      await set(newExerciseRef, exerciseData);
-      // Remove old exercise node
-      await set(oldExerciseRef, null);
-      toast.success(`Renamed exercise to "${trimmedNewTitle}"`);
-      return true;
-    } else {
-      toast.warn(`Exercise "${oldExerciseTitle}" not found.`);
-      return false;
-    }
+    // ... (logic còn lại giữ nguyên)
+    await set(exerciseTitleFieldRef, trimmedNewTitle);
+    toast.success(`Exercise display title updated to "${trimmedNewTitle}"`);
+    return true;
   } catch (error) {
-    console.error("Error editing writing exercise title:", error);
-    toast.error("Failed to rename exercise.");
+    console.error("Error editing writing exercise display title:", error);
+    toast.error("Failed to update exercise display title.");
     return false;
   }
 };
 
-// Delete a writing exercise from a topic
 export const deleteWritingExercise = async (
   level,
-  topicTitle,
-  exerciseTitle
+  topicId, // Nhận topicId
+  exerciseId
 ) => {
   try {
-    // Change path to Writing
     const exerciseRef = ref(
       database,
-      `${BASE_PATH}/${level}/Writing/Topics/${topicTitle}/Exercises/${exerciseTitle}`
+      `${BASE_PATH}/${level}/Writing/Topics/${topicId}/Exercises/${exerciseId}` // Sử dụng topicId
     );
+    // ... (logic còn lại giữ nguyên)
     await set(exerciseRef, null);
-    toast.success(`Deleted exercise: ${exerciseTitle}`);
+    toast.success("Deleted exercise");
     return true;
   } catch (error) {
     console.error("Error deleting writing exercise:", error);
@@ -331,38 +300,26 @@ export const deleteWritingExercise = async (
   }
 };
 
-// Update the detail (script) of a specific exercise
-export const updateWritingExerciseDetail = async (
+export const updateWritingExerciseScript = async (
   level,
-  topicTitle,
-  exerciseTitle,
-  exerciseData // Data { script }
+  topicId, // Nhận topicId
+  exerciseId,
+  scriptContent
 ) => {
   try {
-    // Validate exerciseData structure (only script)
-    if (!exerciseData || typeof exerciseData.script === "undefined") {
-      throw new Error(
-        "Invalid exercise data structure for update. 'script' is required."
-      );
+    if (typeof scriptContent === "undefined") {
+      throw new Error("Invalid exercise data: 'script' content is required.");
     }
-
-    // Create cleaned data (only script)
-    const sanitizedExerciseData = {
-      script: exerciseData.script || "",
-    };
-
-    // Reference to the specific exercise
-    // Change path to Writing
-    const exerciseDetailRef = ref(
+    const scriptRef = ref(
       database,
-      `${BASE_PATH}/${level}/Writing/Topics/${topicTitle}/Exercises/${exerciseTitle}`
+      `${BASE_PATH}/${level}/Writing/Topics/${topicId}/Exercises/${exerciseId}/script` // Sử dụng topicId
     );
-    await set(exerciseDetailRef, sanitizedExerciseData);
-    // No toast here, typically handled in the component
+    // ... (logic còn lại giữ nguyên)
+    await set(scriptRef, scriptContent || "");
     return true;
   } catch (error) {
-    console.error("Error updating writing exercise detail:", error);
-    toast.error(`Failed to update exercise "${exerciseTitle}".`);
+    console.error("Error updating writing exercise script:", error);
+    toast.error(`Failed to update script for exercise ID "${exerciseId}".`);
     return false;
   }
 };
