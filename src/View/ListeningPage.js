@@ -1,57 +1,52 @@
 // ListeningPage.js
-import React, { useState, useEffect, useCallback, useMemo } from "react"; // Thêm useMemo
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import "../css/speaking.css"; // Giữ nguyên CSS hoặc tạo Listening.css
+import "../css/speaking.css"; // Hoặc Listening.css
 
-// Import các hàm service của Listening (đã cập nhật)
 import {
   fetchListeningTopics,
   addListeningTopic,
-  editListeningTopicName, // Đổi tên hàm service
+  editListeningTopicName,
   deleteListeningTopic,
-  fetchListeningExercisesForTopic, // Đổi tên hàm service
-  fetchListeningExerciseDetail, // Đổi tên hàm service
+  fetchListeningExercisesForTopic,
+  fetchListeningExerciseDetail,
   addListeningExercise,
-  editListeningExerciseDisplayTitle, // Đổi tên hàm service
+  editListeningExerciseDisplayTitle,
   deleteListeningExercise,
   updateListeningExerciseDetail,
+  deleteUserListeningAnswersForQuestion,
 } from "../Model/ListeningService";
 
 const ListeningPage = () => {
   const { levelId } = useParams();
   const upperLevelId = levelId.toUpperCase();
 
-  // --- State cho Topics (Sử dụng ID) ---
-  const [topics, setTopics] = useState([]); // Array of { id, topicName }
-  const [selectedTopic, setSelectedTopic] = useState(null); // Object { id, topicName } or null
+  // --- State cho Topics ---
+  const [topics, setTopics] = useState([]);
+  const [selectedTopic, setSelectedTopic] = useState(null);
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
   const [showAddTopicInput, setShowAddTopicInput] = useState(false);
-  const [newTopicName, setNewTopicName] = useState(""); // Tên hiển thị topic mới
-
-  const [topicToEdit, setTopicToEdit] = useState(null); // Object { id, topicName }
-  const [editingTopicName, setEditingTopicName] = useState(""); // Tên hiển thị mới đang sửa
+  const [newTopicName, setNewTopicName] = useState("");
+  const [topicToEdit, setTopicToEdit] = useState(null);
+  const [editingTopicName, setEditingTopicName] = useState("");
   const [showEditTopicModal, setShowEditTopicModal] = useState(false);
-
-  const [topicToDelete, setTopicToDelete] = useState(null); // Object { id, topicName }
+  const [topicToDelete, setTopicToDelete] = useState(null);
   const [showConfirmDeleteTopic, setShowConfirmDeleteTopic] = useState(false);
 
-  // --- State cho Exercises (Sử dụng ID) ---
-  const [topicExercises, setTopicExercises] = useState([]); // Array of { id, title }
-  const [selectedExercise, setSelectedExercise] = useState(null); // Object { id, title, script, questions } or null
+  // --- State cho Exercises ---
+  const [topicExercises, setTopicExercises] = useState([]);
+  const [selectedExercise, setSelectedExercise] = useState(null);
   const [isLoadingExercises, setIsLoadingExercises] = useState(false);
   const [showAddExerciseInput, setShowAddExerciseInput] = useState(false);
-  const [newExerciseTitle, setNewExerciseTitle] = useState(""); // Tên hiển thị exercise mới
-
-  const [exerciseToEdit, setExerciseToEdit] = useState(null); // Object { id, title }
-  const [editingExerciseTitle, setEditingExerciseTitle] = useState(""); // Tên hiển thị mới đang sửa
+  const [newExerciseTitle, setNewExerciseTitle] = useState("");
+  const [exerciseToEdit, setExerciseToEdit] = useState(null);
+  const [editingExerciseTitle, setEditingExerciseTitle] = useState("");
   const [showEditExerciseModal, setShowEditExerciseModal] = useState(false);
-
-  const [exerciseToDelete, setExerciseToDelete] = useState(null); // Object { id, title }
+  const [exerciseToDelete, setExerciseToDelete] = useState(null);
   const [showConfirmDeleteExercise, setShowConfirmDeleteExercise] =
     useState(false);
 
-  // --- State cho việc chỉnh sửa Exercise Detail ---
   const initialEmptyExerciseDataForDetail = useMemo(
     () => ({ script: "", questions: [] }),
     []
@@ -62,28 +57,18 @@ const ListeningPage = () => {
   const [
     initialExerciseDetailStateForComparison,
     setInitialExerciseDetailStateForComparison,
-  ] = useState(null); // JSON string của {script, questions}
+  ] = useState(null);
 
-  // --- State Loading/Submitting chung ---
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- Hàm Fetch Dữ Liệu ---
-
-  // Load danh sách Topics Listening (sử dụng ID)
   const loadTopics = useCallback(async () => {
     setIsLoadingTopics(true);
     setSelectedTopic(null);
-    setTopicExercises([]);
-    setSelectedExercise(null);
-    setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
-    setInitialExerciseDetailStateForComparison(null);
-
-    const fetchedTopics = await fetchListeningTopics(upperLevelId); // Service đã cập nhật
-    setTopics(fetchedTopics); // Service đã sắp xếp
+    const fetchedTopics = await fetchListeningTopics(upperLevelId);
+    setTopics(fetchedTopics);
     setIsLoadingTopics(false);
-  }, [upperLevelId, initialEmptyExerciseDataForDetail]);
+  }, [upperLevelId]);
 
-  // Load Exercises cho một Topic Listening cụ thể (sử dụng topicId)
   const loadExercisesForSelectedTopic = useCallback(async () => {
     if (!selectedTopic || !selectedTopic.id) {
       setTopicExercises([]);
@@ -96,30 +81,26 @@ const ListeningPage = () => {
     setSelectedExercise(null);
     setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
     setInitialExerciseDetailStateForComparison(null);
-
     const fetchedExercises = await fetchListeningExercisesForTopic(
-      // Gọi hàm mới
       upperLevelId,
-      selectedTopic.id // Truyền topicId
+      selectedTopic.id
     );
     setTopicExercises(fetchedExercises);
     setIsLoadingExercises(false);
   }, [upperLevelId, selectedTopic, initialEmptyExerciseDataForDetail]);
 
-  // Load chi tiết (script, questions) cho một Exercise Listening cụ thể (sử dụng ID)
   const loadExerciseDetail = useCallback(
     async (exerciseIdToLoad) => {
       if (!selectedTopic || !selectedTopic.id || !exerciseIdToLoad) return;
       setIsSubmitting(true);
       const exerciseDetail = await fetchListeningExerciseDetail(
-        // Gọi hàm mới
         upperLevelId,
-        selectedTopic.id, // Truyền topicId
-        exerciseIdToLoad // Truyền exerciseId
+        selectedTopic.id,
+        exerciseIdToLoad
       );
       setIsSubmitting(false);
       if (exerciseDetail) {
-        setSelectedExercise(exerciseDetail); // Lưu { id, title, script, questions }
+        setSelectedExercise(exerciseDetail);
         const editableData = {
           script: exerciseDetail.script,
           questions: exerciseDetail.questions,
@@ -132,7 +113,7 @@ const ListeningPage = () => {
         setSelectedExercise(null);
         setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
         setInitialExerciseDetailStateForComparison(null);
-        toast.warn("Exercise details could not be loaded.");
+        toast.warn("Listening exercise details could not be loaded.");
         await loadExercisesForSelectedTopic();
       }
     },
@@ -144,7 +125,6 @@ const ListeningPage = () => {
     ]
   );
 
-  // --- useEffect Hooks ---
   useEffect(() => {
     loadTopics();
   }, [loadTopics]);
@@ -164,13 +144,10 @@ const ListeningPage = () => {
     initialEmptyExerciseDataForDetail,
   ]);
 
-  // --- Handlers cho Topics (Sử dụng ID) ---
-
   const handleSelectTopic = (topic) => {
-    // Nhận object { id, topicName }
     if (!isSubmitting && topic && topic.id) {
       if (!selectedTopic || topic.id !== selectedTopic.id) {
-        setSelectedTopic(topic); // Lưu cả object
+        setSelectedTopic(topic);
         setShowAddExerciseInput(false);
       }
     }
@@ -183,7 +160,7 @@ const ListeningPage = () => {
       return;
     }
     setIsSubmitting(true);
-    const result = await addListeningTopic(upperLevelId, trimmedName); // Service đã cập nhật
+    const result = await addListeningTopic(upperLevelId, trimmedName);
     if (result.success) {
       setNewTopicName("");
       setShowAddTopicInput(false);
@@ -193,7 +170,6 @@ const ListeningPage = () => {
   };
 
   const handleOpenEditTopicModal = (topic) => {
-    // Nhận object { id, topicName }
     if (topic && topic.id) {
       setTopicToEdit(topic);
       setEditingTopicName(topic.topicName);
@@ -202,7 +178,6 @@ const ListeningPage = () => {
   };
 
   const handleEditTopicName = async () => {
-    // Đổi tên handler
     const trimmedNewName = editingTopicName.trim();
     if (
       !topicToEdit ||
@@ -212,29 +187,31 @@ const ListeningPage = () => {
     ) {
       if (topicToEdit && topicToEdit.topicName === trimmedNewName) {
         setShowEditTopicModal(false);
-      } else toast.warn("Invalid input for renaming topic.");
+      } else {
+        toast.warn(
+          "New topic name cannot be empty or is the same as the current name."
+        );
+      }
       return;
     }
     setIsSubmitting(true);
     const success = await editListeningTopicName(
-      // Gọi hàm service mới
       upperLevelId,
-      topicToEdit.id, // Truyền ID
+      topicToEdit.id,
       trimmedNewName
     );
     setIsSubmitting(false);
     if (success) {
       setShowEditTopicModal(false);
+      await loadTopics();
       if (selectedTopic && selectedTopic.id === topicToEdit.id) {
         setSelectedTopic((prev) => ({ ...prev, topicName: trimmedNewName }));
       }
-      await loadTopics();
       setTopicToEdit(null);
     }
   };
 
   const handleDeleteTopic = (topic) => {
-    // Nhận object { id, topicName }
     if (topic && topic.id) {
       setTopicToDelete(topic);
       setShowConfirmDeleteTopic(true);
@@ -247,17 +224,17 @@ const ListeningPage = () => {
       const success = await deleteListeningTopic(
         upperLevelId,
         topicToDelete.id
-      ); // Gọi service với ID
+      );
+      setIsSubmitting(false);
       if (success) {
         setShowConfirmDeleteTopic(false);
         const deletedTopicId = topicToDelete.id;
         setTopicToDelete(null);
+        await loadTopics();
         if (selectedTopic && selectedTopic.id === deletedTopicId) {
           setSelectedTopic(null);
         }
-        await loadTopics();
       }
-      setIsSubmitting(false);
     }
   };
 
@@ -266,13 +243,19 @@ const ListeningPage = () => {
     setShowConfirmDeleteTopic(false);
   };
 
-  // --- Handlers cho Exercises (Sử dụng ID) ---
-
   const handleSelectExercise = (exercise) => {
-    // Nhận object { id, title }
     if (!isSubmitting && exercise && exercise.id) {
       if (!selectedExercise || exercise.id !== selectedExercise.id) {
-        loadExerciseDetail(exercise.id); // Load bằng ID
+        if (hasChanges) {
+          if (
+            !window.confirm(
+              "You have unsaved changes in the current exercise. Are you sure you want to switch? Your changes will be lost."
+            )
+          ) {
+            return;
+          }
+        }
+        loadExerciseDetail(exercise.id);
       }
     }
   };
@@ -289,9 +272,8 @@ const ListeningPage = () => {
     }
     setIsSubmitting(true);
     const result = await addListeningExercise(
-      // Gọi hàm service mới
       upperLevelId,
-      selectedTopic.id, // Truyền topicId
+      selectedTopic.id,
       trimmedTitle
     );
     if (result.success) {
@@ -303,7 +285,6 @@ const ListeningPage = () => {
   };
 
   const handleOpenEditExerciseModal = (exercise) => {
-    // Nhận object { id, title }
     if (exercise && exercise.id) {
       setExerciseToEdit(exercise);
       setEditingExerciseTitle(exercise.title);
@@ -312,41 +293,45 @@ const ListeningPage = () => {
   };
 
   const handleEditExerciseDisplayTitle = async () => {
-    // Đổi tên handler
     const trimmedNewTitle = editingExerciseTitle.trim();
     if (
       !exerciseToEdit ||
       !exerciseToEdit.id ||
       !trimmedNewTitle ||
-      exerciseToEdit.title === trimmedNewTitle
+      (exerciseToEdit.title && exerciseToEdit.title === trimmedNewTitle)
     ) {
       if (exerciseToEdit && exerciseToEdit.title === trimmedNewTitle) {
         setShowEditExerciseModal(false);
-      } else toast.warn("Invalid input for renaming exercise.");
+      } else {
+        toast.warn(
+          "New exercise title cannot be empty or is the same as the current title."
+        );
+      }
       return;
     }
-    if (!selectedTopic || !selectedTopic.id) return;
+    if (!selectedTopic || !selectedTopic.id) {
+      toast.error("No topic selected for this exercise.");
+      return;
+    }
     setIsSubmitting(true);
     const success = await editListeningExerciseDisplayTitle(
-      // Gọi hàm service mới
       upperLevelId,
       selectedTopic.id,
-      exerciseToEdit.id, // Truyền ID
+      exerciseToEdit.id,
       trimmedNewTitle
     );
     setIsSubmitting(false);
     if (success) {
       setShowEditExerciseModal(false);
+      await loadExercisesForSelectedTopic();
       if (selectedExercise && selectedExercise.id === exerciseToEdit.id) {
         setSelectedExercise((prev) => ({ ...prev, title: trimmedNewTitle }));
       }
-      await loadExercisesForSelectedTopic();
       setExerciseToEdit(null);
     }
   };
 
   const handleDeleteExercise = (exercise) => {
-    // Nhận object { id, title }
     if (exercise && exercise.id) {
       setExerciseToDelete(exercise);
       setShowConfirmDeleteExercise(true);
@@ -362,23 +347,22 @@ const ListeningPage = () => {
     ) {
       setIsSubmitting(true);
       const success = await deleteListeningExercise(
-        // Gọi service với ID
         upperLevelId,
         selectedTopic.id,
         exerciseToDelete.id
       );
+      setIsSubmitting(false);
       if (success) {
         setShowConfirmDeleteExercise(false);
         const deletedExerciseId = exerciseToDelete.id;
         setExerciseToDelete(null);
+        await loadExercisesForSelectedTopic();
         if (selectedExercise && selectedExercise.id === deletedExerciseId) {
           setSelectedExercise(null);
           setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
           setInitialExerciseDetailStateForComparison(null);
         }
-        await loadExercisesForSelectedTopic();
       }
-      setIsSubmitting(false);
     }
   };
 
@@ -387,8 +371,6 @@ const ListeningPage = () => {
     setShowConfirmDeleteExercise(false);
   };
 
-  // --- Handlers cho Chỉnh sửa Exercise Detail ---
-
   const handleScriptChange = (e) => {
     setCurrentEditingExerciseData((prev) => ({
       ...prev,
@@ -396,7 +378,6 @@ const ListeningPage = () => {
     }));
   };
 
-  // Các hàm question handlers giữ nguyên
   const handleQuestionChange = (index, field, value) => {
     setCurrentEditingExerciseData((prev) => {
       const updatedQuestions = [...(prev.questions || [])];
@@ -451,7 +432,9 @@ const ListeningPage = () => {
       questions: [
         ...(Array.isArray(prev.questions) ? prev.questions : []),
         {
-          id: `temp_${Date.now()}`,
+          id: `temp_listen_${Date.now()}_${Math.random()
+            .toString(36)
+            .substr(2, 9)}`,
           questionText: "",
           options: { A: "", B: "", C: "", D: "" },
           correctAnswer: "",
@@ -460,23 +443,141 @@ const ListeningPage = () => {
     }));
   };
 
-  const handleDeleteQuestion = (index) => {
+  const handleDeleteQuestion = async (indexToDelete) => {
     if (
-      index >= 0 &&
-      index < (currentEditingExerciseData.questions?.length || 0)
+      !selectedTopic ||
+      !selectedTopic.id ||
+      !selectedExercise ||
+      !selectedExercise.id
     ) {
-      if (window.confirm("Are you sure you want to delete this question?")) {
-        setCurrentEditingExerciseData((prev) => ({
-          ...prev,
-          questions: prev.questions.filter((_, i) => i !== index),
-        }));
+      toast.warn(
+        "Please select a topic and an exercise before deleting a question."
+      );
+      return;
+    }
+
+    const localQuestions = currentEditingExerciseData.questions || [];
+    if (indexToDelete < 0 || indexToDelete >= localQuestions.length) {
+      console.warn(
+        "Invalid index for deleting listening question based on local data:",
+        indexToDelete
+      );
+      toast.warn("Cannot delete listening question: Invalid index.");
+      return;
+    }
+
+    const exerciseIdForUserAnswers = selectedExercise.id;
+    const questionIdentifierForUserAnswers = indexToDelete;
+
+    const exerciseTitle = selectedExercise.title || "this exercise";
+    const questionTextPreview =
+      localQuestions[indexToDelete]?.questionText.substring(0, 30) + "..." ||
+      `Question ${indexToDelete + 1}`;
+
+    if (
+      window.confirm(
+        `Are you sure you want to delete "${questionTextPreview}" from "${exerciseTitle}"? This will update the database and attempt to delete related user listening answers. This action cannot be undone.`
+      )
+    ) {
+      setIsSubmitting(true);
+      try {
+        const latestExerciseDetail = await fetchListeningExerciseDetail(
+          upperLevelId,
+          selectedTopic.id,
+          selectedExercise.id
+        );
+
+        if (!latestExerciseDetail) {
+          toast.error(
+            "Failed to fetch the latest listening exercise data. Please try again."
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
+        const currentQuestionsFromDB = latestExerciseDetail.questions || [];
+        if (
+          indexToDelete < 0 ||
+          indexToDelete >= currentQuestionsFromDB.length
+        ) {
+          toast.error(
+            "Listening question index is out of sync with the database. Please refresh and try again."
+          );
+          setIsSubmitting(false);
+          await loadExerciseDetail(selectedExercise.id);
+          return;
+        }
+
+        const newQuestions = currentQuestionsFromDB.filter(
+          (_, i) => i !== indexToDelete
+        );
+        const updatedExerciseDataForApi = {
+          script: latestExerciseDetail.script,
+          questions: newQuestions,
+        };
+
+        const successUpdateExercise = await updateListeningExerciseDetail(
+          upperLevelId,
+          selectedTopic.id,
+          selectedExercise.id,
+          updatedExerciseDataForApi
+        );
+
+        if (successUpdateExercise) {
+          setCurrentEditingExerciseData(updatedExerciseDataForApi);
+          setInitialExerciseDetailStateForComparison(
+            JSON.stringify(updatedExerciseDataForApi)
+          );
+          setSelectedExercise((prev) => ({
+            ...prev,
+            script: updatedExerciseDataForApi.script,
+            questions: newQuestions,
+          }));
+          toast.success(
+            "Listening question deleted successfully from the exercise."
+          );
+
+          console.log(
+            `Proceeding to delete user listening answers for exerciseId: ${exerciseIdForUserAnswers}, questionIndex: ${questionIdentifierForUserAnswers}`
+          );
+          const userAnswerDeletionResult =
+            await deleteUserListeningAnswersForQuestion(
+              exerciseIdForUserAnswers,
+              questionIdentifierForUserAnswers
+            );
+
+          // BỎ TOAST.INFO TẠI ĐÂY
+          if (userAnswerDeletionResult.success) {
+            console.log(
+              `User listening answer deletion status: success, operations: ${userAnswerDeletionResult.operations}`
+            );
+          } else {
+            console.error(
+              "Failed to delete user listening answers:",
+              userAnswerDeletionResult.message
+            );
+            // Toast lỗi đã được hiển thị trong service nếu có
+          }
+        } else {
+          await loadExerciseDetail(selectedExercise.id);
+        }
+      } catch (error) {
+        console.error(
+          "Error during listening question deletion process:",
+          error
+        );
+        toast.error(
+          "An unexpected error occurred while deleting the listening question."
+        );
+        if (selectedExercise && selectedExercise.id) {
+          await loadExerciseDetail(selectedExercise.id);
+        }
+      } finally {
+        setIsSubmitting(false);
       }
-    } else {
-      console.warn("Invalid index for deleting question:", index);
     }
   };
 
-  // --- Handler Lưu Thay Đổi cho Exercise Detail (Sử dụng ID) ---
   const handleSaveChanges = async () => {
     if (
       !selectedTopic ||
@@ -487,11 +588,11 @@ const ListeningPage = () => {
       toast.warn("Please select a topic and an exercise before saving.");
       return;
     }
-    // --- Validation ---
-    if (!currentEditingExerciseData.script?.trim()) {
-      toast.warn("Script cannot be empty.");
+    if (typeof currentEditingExerciseData.script !== "string") {
+      toast.warn("Script data is invalid.");
       return;
     }
+
     for (const [index, q] of (
       currentEditingExerciseData.questions || []
     ).entries()) {
@@ -501,46 +602,38 @@ const ListeningPage = () => {
       }
       if (!q.correctAnswer || !["A", "B", "C", "D"].includes(q.correctAnswer)) {
         toast.warn(
-          `Please select a valid correct answer (A, B, C, or D) for Question ${
-            index + 1
-          }.`
+          `Please select a valid correct answer for Question ${index + 1}.`
         );
         return;
       }
       const options = q.options || {};
       if (["A", "B", "C", "D"].some((key) => !(options[key] || "").trim())) {
-        toast.warn(
-          `All options (A, B, C, D) must be filled for Question ${index + 1}.`
-        );
+        toast.warn(`All options must be filled for Question ${index + 1}.`);
         return;
       }
     }
-    // --- End Validation ---
 
     setIsSubmitting(true);
     const success = await updateListeningExerciseDetail(
-      // Gọi hàm service mới
       upperLevelId,
       selectedTopic.id,
-      selectedExercise.id, // Truyền ID
-      currentEditingExerciseData // Truyền { script, questions }
+      selectedExercise.id,
+      currentEditingExerciseData
     );
     if (success) {
       setInitialExerciseDetailStateForComparison(
         JSON.stringify(currentEditingExerciseData)
       );
       setSelectedExercise((prev) => ({
-        // Cập nhật state local
         ...prev,
         script: currentEditingExerciseData.script,
         questions: currentEditingExerciseData.questions,
       }));
-      toast.success("Changes saved successfully!");
+      toast.success("Listening exercise changes saved successfully!");
     }
     setIsSubmitting(false);
   };
 
-  // Check if changes were made
   const hasChanges = useMemo(() => {
     if (!selectedExercise || initialExerciseDetailStateForComparison === null) {
       return false;
@@ -556,11 +649,9 @@ const ListeningPage = () => {
     initialExerciseDetailStateForComparison,
   ]);
 
-  // --- Render Logic (Giữ nguyên cấu trúc UI, cập nhật dữ liệu và handler) ---
   return (
     <div
       className={`speaking-container ${
-        // Giữ class hoặc đổi
         showConfirmDeleteTopic ||
         showEditTopicModal ||
         showConfirmDeleteExercise ||
@@ -569,30 +660,31 @@ const ListeningPage = () => {
           : ""
       }`}
     >
-      {/* Sidebar: Danh sách Listening Topics (Sử dụng ID) */}
       <div className="topic-sidebar">
-        <h2>Listening Topics</h2>
+        <h2>Listening Topics ({upperLevelId})</h2>
         <button
           className="add-topic"
           onClick={() =>
             !isSubmitting && setShowAddTopicInput(!showAddTopicInput)
           }
           style={{ marginBottom: "10px" }}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isLoadingTopics}
         >
           + Add Topic
         </button>
         {showAddTopicInput && (
-          <div style={{ marginBottom: "16px" }}>
+          <div style={{ marginBottom: "16px", display: "flex" }}>
             <input
               type="text"
               value={newTopicName}
               onChange={(e) => setNewTopicName(e.target.value)}
               placeholder="Enter new topic name..."
               style={{
-                padding: "8px",
-                width: "calc(70% - 5px)",
+                flexGrow: 1,
                 marginRight: "5px",
+                padding: "8px",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
               }}
               disabled={isSubmitting}
             />
@@ -600,7 +692,6 @@ const ListeningPage = () => {
               className="add-question-btn-save"
               onClick={handleAddTopic}
               disabled={isSubmitting || !newTopicName.trim()}
-              style={{ width: "auto", padding: "8px 12px" }}
             >
               Save
             </button>
@@ -610,61 +701,59 @@ const ListeningPage = () => {
           <p>Loading topics...</p>
         ) : (
           <ul>
-            {Array.isArray(topics) && topics.length > 0
-              ? topics.map((topic) => (
-                  <li
-                    key={topic.id}
-                    className={selectedTopic?.id === topic.id ? "active" : ""}
-                    onClick={() => handleSelectTopic(topic)}
-                    style={{ pointerEvents: isSubmitting ? "none" : "auto" }}
+            {Array.isArray(topics) && topics.length > 0 ? (
+              topics.map((topic) => (
+                <li
+                  key={topic.id}
+                  className={selectedTopic?.id === topic.id ? "active" : ""}
+                  onClick={() => handleSelectTopic(topic)}
+                  style={{ pointerEvents: isSubmitting ? "none" : "auto" }}
+                >
+                  <span
+                    style={{
+                      flexGrow: 1,
+                      marginRight: "10px",
+                      wordBreak: "break-word",
+                    }}
                   >
-                    <span
-                      style={{
-                        flexGrow: 1,
-                        marginRight: "10px",
-                        wordBreak: "break-word",
+                    {topic.topicName}
+                  </span>
+                  <div className="edit-delete-btn-container">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditTopicModal(topic);
                       }}
+                      className="edit-topic"
+                      disabled={isSubmitting}
+                      title="Edit Topic Name"
                     >
-                      {topic.topicName}
-                    </span>
-                    <div className="edit-delete-btn-container">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditTopicModal(topic);
-                        }}
-                        className="edit-topic"
-                        style={{ cursor: "pointer" }}
-                        disabled={isSubmitting}
-                        title="Edit Topic Name"
-                      >
-                        📝
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteTopic(topic);
-                        }}
-                        className="delete-topic"
-                        style={{ cursor: "pointer" }}
-                        disabled={isSubmitting}
-                        title="Delete Topic"
-                      >
-                        ❌
-                      </button>
-                    </div>
-                  </li>
-                ))
-              : !isLoadingTopics && <li>No topics found.</li>}
+                      📝
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteTopic(topic);
+                      }}
+                      className="delete-topic"
+                      disabled={isSubmitting}
+                      title="Delete Topic"
+                    >
+                      ❌
+                    </button>
+                  </div>
+                </li>
+              ))
+            ) : (
+              <li>No listening topics found for level {upperLevelId}.</li>
+            )}
           </ul>
         )}
-      </div>{" "}
-      {/* End Sidebar */}
-      {/* Detail Area: Exercises List & Exercise Detail Editor (Sử dụng ID) */}
+      </div>
+
       <div className="topic-detail">
-        {selectedTopic ? ( // Check selectedTopic object
+        {selectedTopic ? (
           <>
-            {/* --- Section Hiển thị Exercises của Topic (Sử dụng ID) --- */}
             <div className="exercise-section" style={{ marginBottom: "30px" }}>
               <div
                 style={{
@@ -682,7 +771,6 @@ const ListeningPage = () => {
                     setShowAddExerciseInput(!showAddExerciseInput)
                   }
                   disabled={isSubmitting || isLoadingExercises}
-                  style={{ width: "auto", padding: "8px 12px" }}
                 >
                   + Add Exercise
                 </button>
@@ -694,6 +782,7 @@ const ListeningPage = () => {
                     padding: "10px",
                     backgroundColor: "#f0f0f0",
                     borderRadius: "5px",
+                    display: "flex",
                   }}
                 >
                   <input
@@ -702,9 +791,11 @@ const ListeningPage = () => {
                     onChange={(e) => setNewExerciseTitle(e.target.value)}
                     placeholder="Enter new exercise title..."
                     style={{
-                      padding: "8px",
-                      width: "calc(70% - 5px)",
+                      flexGrow: 1,
                       marginRight: "5px",
+                      padding: "8px",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
                     }}
                     disabled={isSubmitting}
                   />
@@ -712,79 +803,75 @@ const ListeningPage = () => {
                     className="add-question-btn-save"
                     onClick={handleAddExercise}
                     disabled={isSubmitting || !newExerciseTitle.trim()}
-                    style={{ width: "auto", padding: "8px 12px" }}
                   >
                     Save Exercise
                   </button>
                 </div>
               )}
               {isLoadingExercises ? (
-                <p>Loading exercises...</p>
+                <p>Loading exercises for {selectedTopic.topicName}...</p>
               ) : (
                 <ul className="exercise-list">
-                  {Array.isArray(topicExercises) && topicExercises.length > 0
-                    ? topicExercises.map((exercise) => (
-                        <li
-                          key={exercise.id}
-                          className={
-                            selectedExercise?.id === exercise.id ? "active" : ""
-                          }
-                          onClick={() => handleSelectExercise(exercise)}
+                  {Array.isArray(topicExercises) &&
+                  topicExercises.length > 0 ? (
+                    topicExercises.map((exercise) => (
+                      <li
+                        key={exercise.id}
+                        className={
+                          selectedExercise?.id === exercise.id ? "active" : ""
+                        }
+                        onClick={() => handleSelectExercise(exercise)}
+                        style={{
+                          pointerEvents: isSubmitting ? "none" : "auto",
+                        }}
+                      >
+                        <span
                           style={{
-                            pointerEvents: isSubmitting ? "none" : "auto",
+                            flexGrow: 1,
+                            marginRight: "10px",
+                            wordBreak: "break-word",
                           }}
                         >
-                          <span
-                            style={{
-                              flexGrow: 1,
-                              marginRight: "10px",
-                              wordBreak: "break-word",
+                          {exercise.title}
+                        </span>
+                        <div className="edit-delete-btn-container">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditExerciseModal(exercise);
                             }}
+                            className="edit-topic"
+                            disabled={isSubmitting}
+                            title="Edit Exercise Title"
                           >
-                            {exercise.title}
-                          </span>
-                          <div className="edit-delete-btn-container">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenEditExerciseModal(exercise);
-                              }}
-                              className="edit-topic"
-                              style={{ cursor: "pointer" }}
-                              disabled={isSubmitting}
-                              title="Edit Exercise Title"
-                            >
-                              📝
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteExercise(exercise);
-                              }}
-                              className="delete-topic"
-                              style={{ cursor: "pointer" }}
-                              disabled={isSubmitting}
-                              title="Delete Exercise"
-                            >
-                              ❌
-                            </button>
-                          </div>
-                        </li>
-                      ))
-                    : !isLoadingExercises && (
-                        <li>No exercises found for this topic.</li>
-                      )}
+                            📝
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteExercise(exercise);
+                            }}
+                            className="delete-topic"
+                            disabled={isSubmitting}
+                            title="Delete Exercise"
+                          >
+                            ❌
+                          </button>
+                        </div>
+                      </li>
+                    ))
+                  ) : (
+                    <li>No listening exercises found for this topic.</li>
+                  )}
                 </ul>
               )}
-            </div>{" "}
-            {/* End Exercise Section */}
-            {/* --- Section Chỉnh sửa Exercise Detail (Sử dụng ID) --- */}
-            {selectedExercise ? ( // Check selectedExercise object
+            </div>
+
+            {selectedExercise ? (
               <div
                 className="exercise-detail-editor"
                 style={{ borderTop: "2px solid #ccc", paddingTop: "20px" }}
               >
-                {/* Header: Title và nút Save Changes */}
                 <div
                   style={{
                     display: "flex",
@@ -793,7 +880,7 @@ const ListeningPage = () => {
                     marginBottom: "20px",
                   }}
                 >
-                  <h2>{selectedExercise.title} - Details</h2>
+                  <h2>Edit: {selectedExercise.title}</h2>
                   {hasChanges && (
                     <button
                       className="add-question-btn-save"
@@ -802,7 +889,6 @@ const ListeningPage = () => {
                       style={{
                         backgroundColor: "#4CAF50",
                         color: "white",
-                        width: "auto",
                         padding: "8px 16px",
                       }}
                     >
@@ -810,8 +896,6 @@ const ListeningPage = () => {
                     </button>
                   )}
                 </div>
-
-                {/* Script Input */}
                 <div className="form-group" style={{ marginBottom: "20px" }}>
                   <label
                     htmlFor="listeningScript"
@@ -821,27 +905,26 @@ const ListeningPage = () => {
                       fontWeight: "bold",
                     }}
                   >
-                    Script:
+                    Audio Script / URL:
                   </label>
                   <textarea
                     id="listeningScript"
                     value={currentEditingExerciseData.script}
                     onChange={handleScriptChange}
-                    placeholder="Enter the listening script here..."
-                    rows={8}
+                    placeholder="Enter audio script or URL here..."
+                    rows={6}
                     style={{
                       width: "100%",
                       padding: "10px",
                       border: "1px solid #ccc",
                       borderRadius: "4px",
+                      fontSize: "1rem",
+                      lineHeight: "1.5",
                     }}
                     disabled={isSubmitting}
                   />
                 </div>
-
-                {/* Questions Section */}
                 <div className="questions-section">
-                  {/* ... (Phần render questions giữ nguyên) ... */}
                   <h3
                     style={{
                       borderBottom: "1px solid #eee",
@@ -884,7 +967,7 @@ const ListeningPage = () => {
                               fontSize: "1.2em",
                             }}
                             disabled={isSubmitting}
-                            title="Delete Question"
+                            title="Delete This Question"
                           >
                             ❌
                           </button>
@@ -909,7 +992,12 @@ const ListeningPage = () => {
                               )
                             }
                             placeholder="Enter question text"
-                            style={{ width: "100%", padding: "8px" }}
+                            style={{
+                              width: "100%",
+                              padding: "8px",
+                              border: "1px solid #ccc",
+                              borderRadius: "3px",
+                            }}
                             disabled={isSubmitting}
                           />
                         </div>
@@ -933,7 +1021,9 @@ const ListeningPage = () => {
                             >
                               <input
                                 type="radio"
-                                name={`correctAnswer_Listening_${selectedExercise.id}_${index}`} // Đảm bảo name duy nhất
+                                name={`correctAnswer_Listening_${
+                                  selectedExercise.id
+                                }_${q.id || index}`}
                                 value={optionKey}
                                 checked={q.correctAnswer === optionKey}
                                 onChange={(e) =>
@@ -952,6 +1042,7 @@ const ListeningPage = () => {
                                 style={{
                                   marginRight: "5px",
                                   fontWeight: "bold",
+                                  minWidth: "20px",
                                 }}
                               >
                                 {optionKey}.
@@ -969,7 +1060,12 @@ const ListeningPage = () => {
                                   )
                                 }
                                 placeholder={`Option ${optionKey}`}
-                                style={{ flexGrow: 1, padding: "6px" }}
+                                style={{
+                                  flexGrow: 1,
+                                  padding: "6px",
+                                  border: "1px solid #ccc",
+                                  borderRadius: "3px",
+                                }}
                                 disabled={isSubmitting}
                               />
                             </div>
@@ -993,35 +1089,47 @@ const ListeningPage = () => {
                     marginTop: "20px",
                     fontStyle: "italic",
                     color: "#555",
+                    textAlign: "center",
                   }}
                 >
-                  Select an exercise from the list above to view or edit its
-                  details, or add a new one.
+                  Select a listening exercise to view or edit its details.
                 </p>
               )
             )}
           </>
         ) : (
-          <p>
-            Select a listening topic from the sidebar to manage its exercises.
-          </p>
+          !isLoadingTopics && (
+            <p
+              style={{
+                textAlign: "center",
+                marginTop: "20px",
+                fontStyle: "italic",
+                color: "#777",
+              }}
+            >
+              Select a listening topic from the sidebar to manage its exercises.
+              If no topics exist, please add one.
+            </p>
+          )
         )}
-      </div>{" "}
-      {/* End Detail Area */}
-      {/* --- Modals (Sử dụng ID và hiển thị tên từ object) --- */}
-      {/* ... (Modals giữ nguyên cấu trúc như Reading/Writing) ... */}
+      </div>
+
       {showEditTopicModal && topicToEdit && (
         <div className="edit-topic-modal">
+          {" "}
           <div className="modal-content">
-            <h3>Edit Topic Name</h3>
+            {" "}
+            <h3>Edit Listening Topic Name</h3>{" "}
             <input
               type="text"
               value={editingTopicName}
               onChange={(e) => setEditingTopicName(e.target.value)}
               placeholder="Enter new topic name..."
               disabled={isSubmitting}
-            />
-            <div style={{ marginTop: "15px" }}>
+              style={{ width: "100%", padding: "10px", marginBottom: "15px" }}
+            />{" "}
+            <div>
+              {" "}
               <button
                 className="btn-modal-save"
                 onClick={handleEditTopicName}
@@ -1031,60 +1139,76 @@ const ListeningPage = () => {
                   editingTopicName.trim() === topicToEdit.topicName
                 }
               >
-                {isSubmitting ? "Saving..." : "Save"}
-              </button>
+                {" "}
+                {isSubmitting ? "Saving..." : "Save"}{" "}
+              </button>{" "}
               <button
                 className="btn-modal-cancel"
                 onClick={() => !isSubmitting && setShowEditTopicModal(false)}
                 disabled={isSubmitting}
               >
-                Cancel
-              </button>
-            </div>
-          </div>
+                {" "}
+                Cancel{" "}
+              </button>{" "}
+            </div>{" "}
+          </div>{" "}
         </div>
       )}
       {showConfirmDeleteTopic && topicToDelete && (
         <div className="confirm-delete-modal">
+          {" "}
           <div className="modal-content">
-            <h3>Delete Topic "{topicToDelete.topicName}"?</h3>
+            {" "}
+            <h3>Delete Topic "{topicToDelete.topicName}"?</h3>{" "}
             <p>
+              {" "}
               This will delete the topic and <strong>all its exercises</strong>.
-              (ID: {topicToDelete.id}) This action cannot be undone.
-            </p>
-            <div style={{ marginTop: "15px" }}>
+              (ID: {topicToDelete.id}) This action cannot be undone.{" "}
+            </p>{" "}
+            <div>
+              {" "}
               <button
                 onClick={confirmDeleteTopic}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >
-                {isSubmitting ? "Deleting..." : "Yes, Delete"}
-              </button>
+                {" "}
+                {isSubmitting ? "Deleting..." : "Yes, Delete"}{" "}
+              </button>{" "}
               <button
                 onClick={cancelDeleteTopic}
                 disabled={isSubmitting}
                 className="cancel-btn"
               >
-                No, Cancel
-              </button>
-            </div>
-          </div>
+                {" "}
+                No, Cancel{" "}
+              </button>{" "}
+            </div>{" "}
+          </div>{" "}
         </div>
       )}
       {showEditExerciseModal && exerciseToEdit && selectedTopic && (
         <div className="edit-topic-modal">
+          {" "}
           <div className="modal-content">
-            <h3>Edit Exercise Title</h3>
-            <p>Topic: {selectedTopic?.topicName}</p>
-            <p>Exercise (current): {exerciseToEdit?.title}</p>
+            {" "}
+            <h3>Edit Listening Exercise Title</h3>{" "}
+            <p>
+              <strong>Topic:</strong> {selectedTopic?.topicName}
+            </p>{" "}
+            <p style={{ marginBottom: "10px" }}>
+              <strong>Current Title:</strong> {exerciseToEdit?.title}
+            </p>{" "}
             <input
               type="text"
               value={editingExerciseTitle}
               onChange={(e) => setEditingExerciseTitle(e.target.value)}
               placeholder="Enter new exercise title..."
               disabled={isSubmitting}
-            />
-            <div style={{ marginTop: "15px" }}>
+              style={{ width: "100%", padding: "10px", marginBottom: "15px" }}
+            />{" "}
+            <div>
+              {" "}
               <button
                 className="btn-modal-save"
                 onClick={handleEditExerciseDisplayTitle}
@@ -1095,45 +1219,53 @@ const ListeningPage = () => {
                     editingExerciseTitle.trim() === exerciseToEdit.title)
                 }
               >
-                {isSubmitting ? "Saving..." : "Save"}
-              </button>
+                {" "}
+                {isSubmitting ? "Saving..." : "Save"}{" "}
+              </button>{" "}
               <button
                 className="btn-modal-cancel"
                 onClick={() => !isSubmitting && setShowEditExerciseModal(false)}
                 disabled={isSubmitting}
               >
                 Cancel
-              </button>
-            </div>
-          </div>
+              </button>{" "}
+            </div>{" "}
+          </div>{" "}
         </div>
       )}
       {showConfirmDeleteExercise && exerciseToDelete && selectedTopic && (
         <div className="confirm-delete-modal">
+          {" "}
           <div className="modal-content">
-            <h3>Delete Exercise "{exerciseToDelete?.title}"?</h3>
-            <p>Topic: {selectedTopic?.topicName}</p>
+            {" "}
+            <h3>Delete Exercise "{exerciseToDelete?.title}"?</h3>{" "}
             <p>
-              This will delete the exercise script and questions. (ID:{" "}
-              {exerciseToDelete?.id}) This action cannot be undone.
-            </p>
-            <div style={{ marginTop: "15px" }}>
+              <strong>Topic:</strong> {selectedTopic?.topicName}
+            </p>{" "}
+            <p>
+              {" "}
+              This will delete the exercise script/audio and all its questions.
+              (ID: {exerciseToDelete?.id}) This action cannot be undone.{" "}
+            </p>{" "}
+            <div>
+              {" "}
               <button
                 onClick={confirmDeleteExercise}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >
-                {isSubmitting ? "Deleting..." : "Yes, Delete"}
-              </button>
+                {" "}
+                {isSubmitting ? "Deleting..." : "Yes, Delete"}{" "}
+              </button>{" "}
               <button
                 onClick={cancelDeleteExercise}
                 disabled={isSubmitting}
                 className="cancel-btn"
               >
                 No, Cancel
-              </button>
-            </div>
-          </div>
+              </button>{" "}
+            </div>{" "}
+          </div>{" "}
         </div>
       )}
     </div>

@@ -16,13 +16,14 @@ import {
   editReadingExerciseDisplayTitle,
   deleteReadingExercise,
   updateReadingExerciseDetail,
+  deleteUserAnswersForQuestion, // Đã thêm
 } from "../Model/ReadingService";
 
 const ReadingPage = () => {
   const { levelId } = useParams();
   const upperLevelId = levelId.toUpperCase();
 
-  // --- State cho Topics (Sử dụng ID) ---
+  // --- State cho Topics ---
   const [topics, setTopics] = useState([]);
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
@@ -34,9 +35,9 @@ const ReadingPage = () => {
   const [topicToDelete, setTopicToDelete] = useState(null);
   const [showConfirmDeleteTopic, setShowConfirmDeleteTopic] = useState(false);
 
-  // --- State cho Exercises (Sử dụng ID) ---
+  // --- State cho Exercises ---
   const [topicExercises, setTopicExercises] = useState([]);
-  const [selectedExercise, setSelectedExercise] = useState(null); // Sẽ chứa { id, title, script, questions }
+  const [selectedExercise, setSelectedExercise] = useState(null);
   const [isLoadingExercises, setIsLoadingExercises] = useState(false);
   const [showAddExerciseInput, setShowAddExerciseInput] = useState(false);
   const [newExerciseTitle, setNewExerciseTitle] = useState("");
@@ -47,37 +48,27 @@ const ReadingPage = () => {
   const [showConfirmDeleteExercise, setShowConfirmDeleteExercise] =
     useState(false);
 
-  // --- State cho việc chỉnh sửa Exercise Detail (dùng lại "script") ---
   const initialEmptyExerciseDataForDetail = useMemo(
-    () => ({ script: "", questions: [] }), // Đổi lại thành script
+    () => ({ script: "", questions: [] }),
     []
   );
-  // State chứa dữ liệu đang chỉnh sửa (chỉ script và questions)
   const [currentEditingExerciseData, setCurrentEditingExerciseData] = useState(
     initialEmptyExerciseDataForDetail
   );
-  // State lưu trữ trạng thái ban đầu của script và questions để so sánh thay đổi
   const [
     initialExerciseDetailStateForComparison,
     setInitialExerciseDetailStateForComparison,
-  ] = useState(null); // Sẽ là JSON string của {script, questions}
+  ] = useState(null);
 
-  // --- State Loading/Submitting chung ---
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // --- Hàm Fetch Dữ Liệu ---
 
   const loadTopics = useCallback(async () => {
     setIsLoadingTopics(true);
     setSelectedTopic(null);
-    setTopicExercises([]);
-    setSelectedExercise(null);
-    setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
-    setInitialExerciseDetailStateForComparison(null);
     const fetchedTopics = await fetchReadingTopics(upperLevelId);
     setTopics(fetchedTopics);
     setIsLoadingTopics(false);
-  }, [upperLevelId, initialEmptyExerciseDataForDetail]);
+  }, [upperLevelId]);
 
   const loadExercisesForSelectedTopic = useCallback(async () => {
     if (!selectedTopic || !selectedTopic.id) {
@@ -99,13 +90,11 @@ const ReadingPage = () => {
     setIsLoadingExercises(false);
   }, [upperLevelId, selectedTopic, initialEmptyExerciseDataForDetail]);
 
-  // Load chi tiết (script, questions) cho một Exercise Reading cụ thể
   const loadExerciseDetail = useCallback(
     async (exerciseIdToLoad) => {
       if (!selectedTopic || !selectedTopic.id || !exerciseIdToLoad) return;
       setIsSubmitting(true);
       const exerciseDetail = await fetchReadingExerciseDetail(
-        // Service trả về { id, title, script, questions }
         upperLevelId,
         selectedTopic.id,
         exerciseIdToLoad
@@ -113,9 +102,8 @@ const ReadingPage = () => {
       setIsSubmitting(false);
       if (exerciseDetail) {
         setSelectedExercise(exerciseDetail);
-        // Lưu phần cần chỉnh sửa và so sánh (script và questions)
         const editableData = {
-          script: exerciseDetail.script, // Đổi lại thành script
+          script: exerciseDetail.script,
           questions: exerciseDetail.questions,
         };
         setCurrentEditingExerciseData(editableData);
@@ -138,7 +126,6 @@ const ReadingPage = () => {
     ]
   );
 
-  // --- useEffect Hooks ---
   useEffect(() => {
     loadTopics();
   }, [loadTopics]);
@@ -158,7 +145,6 @@ const ReadingPage = () => {
     initialEmptyExerciseDataForDetail,
   ]);
 
-  // --- Handlers cho Topics (Giữ nguyên) ---
   const handleSelectTopic = (topic) => {
     if (!isSubmitting && topic && topic.id) {
       if (!selectedTopic || topic.id !== selectedTopic.id) {
@@ -202,7 +188,11 @@ const ReadingPage = () => {
     ) {
       if (topicToEdit && topicToEdit.topicName === trimmedNewName) {
         setShowEditTopicModal(false);
-      } else toast.warn("Invalid input for renaming topic.");
+      } else {
+        toast.warn(
+          "New topic name cannot be empty or is the same as the current name."
+        );
+      }
       return;
     }
     setIsSubmitting(true);
@@ -214,10 +204,10 @@ const ReadingPage = () => {
     setIsSubmitting(false);
     if (success) {
       setShowEditTopicModal(false);
+      await loadTopics();
       if (selectedTopic && selectedTopic.id === topicToEdit.id) {
         setSelectedTopic((prev) => ({ ...prev, topicName: trimmedNewName }));
       }
-      await loadTopics();
       setTopicToEdit(null);
     }
   };
@@ -233,16 +223,16 @@ const ReadingPage = () => {
     if (topicToDelete && topicToDelete.id) {
       setIsSubmitting(true);
       const success = await deleteReadingTopic(upperLevelId, topicToDelete.id);
+      setIsSubmitting(false);
       if (success) {
         setShowConfirmDeleteTopic(false);
         const deletedTopicId = topicToDelete.id;
         setTopicToDelete(null);
+        await loadTopics();
         if (selectedTopic && selectedTopic.id === deletedTopicId) {
           setSelectedTopic(null);
         }
-        await loadTopics();
       }
-      setIsSubmitting(false);
     }
   };
 
@@ -251,11 +241,18 @@ const ReadingPage = () => {
     setShowConfirmDeleteTopic(false);
   };
 
-  // --- Handlers cho Exercises (Giữ nguyên logic, chỉ gọi service đúng) ---
-
   const handleSelectExercise = (exercise) => {
     if (!isSubmitting && exercise && exercise.id) {
       if (!selectedExercise || exercise.id !== selectedExercise.id) {
+        if (hasChanges) {
+          if (
+            !window.confirm(
+              "You have unsaved changes in the current exercise. Are you sure you want to switch? Your changes will be lost."
+            )
+          ) {
+            return;
+          }
+        }
         loadExerciseDetail(exercise.id);
       }
     }
@@ -299,14 +296,21 @@ const ReadingPage = () => {
       !exerciseToEdit ||
       !exerciseToEdit.id ||
       !trimmedNewTitle ||
-      exerciseToEdit.title === trimmedNewTitle
+      (exerciseToEdit.title && exerciseToEdit.title === trimmedNewTitle)
     ) {
       if (exerciseToEdit && exerciseToEdit.title === trimmedNewTitle) {
         setShowEditExerciseModal(false);
-      } else toast.warn("Invalid input for renaming exercise.");
+      } else {
+        toast.warn(
+          "New exercise title cannot be empty or is the same as the current title."
+        );
+      }
       return;
     }
-    if (!selectedTopic || !selectedTopic.id) return;
+    if (!selectedTopic || !selectedTopic.id) {
+      toast.error("No topic selected for this exercise.");
+      return;
+    }
     setIsSubmitting(true);
     const success = await editReadingExerciseDisplayTitle(
       upperLevelId,
@@ -317,10 +321,10 @@ const ReadingPage = () => {
     setIsSubmitting(false);
     if (success) {
       setShowEditExerciseModal(false);
+      await loadExercisesForSelectedTopic();
       if (selectedExercise && selectedExercise.id === exerciseToEdit.id) {
         setSelectedExercise((prev) => ({ ...prev, title: trimmedNewTitle }));
       }
-      await loadExercisesForSelectedTopic();
       setExerciseToEdit(null);
     }
   };
@@ -345,18 +349,18 @@ const ReadingPage = () => {
         selectedTopic.id,
         exerciseToDelete.id
       );
+      setIsSubmitting(false);
       if (success) {
         setShowConfirmDeleteExercise(false);
         const deletedExerciseId = exerciseToDelete.id;
         setExerciseToDelete(null);
+        await loadExercisesForSelectedTopic();
         if (selectedExercise && selectedExercise.id === deletedExerciseId) {
           setSelectedExercise(null);
           setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
           setInitialExerciseDetailStateForComparison(null);
         }
-        await loadExercisesForSelectedTopic();
       }
-      setIsSubmitting(false);
     }
   };
 
@@ -365,17 +369,13 @@ const ReadingPage = () => {
     setShowConfirmDeleteExercise(false);
   };
 
-  // --- Handlers cho Chỉnh sửa Exercise Detail (dùng lại "script") ---
-
-  // Đổi tên lại handler và state update
   const handleScriptChange = (e) => {
     setCurrentEditingExerciseData((prev) => ({
       ...prev,
-      script: e.target.value, // Cập nhật script
+      script: e.target.value,
     }));
   };
 
-  // Các hàm handle question, option, correct answer giữ nguyên logic cũ
   const handleQuestionChange = (index, field, value) => {
     setCurrentEditingExerciseData((prev) => {
       const updatedQuestions = [...(prev.questions || [])];
@@ -430,7 +430,7 @@ const ReadingPage = () => {
       questions: [
         ...(Array.isArray(prev.questions) ? prev.questions : []),
         {
-          id: `temp_${Date.now()}`,
+          id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           questionText: "",
           options: { A: "", B: "", C: "", D: "" },
           correctAnswer: "",
@@ -439,23 +439,135 @@ const ReadingPage = () => {
     }));
   };
 
-  const handleDeleteQuestion = (index) => {
+  const handleDeleteQuestion = async (indexToDelete) => {
     if (
-      index >= 0 &&
-      index < (currentEditingExerciseData.questions?.length || 0)
+      !selectedTopic ||
+      !selectedTopic.id ||
+      !selectedExercise ||
+      !selectedExercise.id
     ) {
-      if (window.confirm("Are you sure you want to delete this question?")) {
-        setCurrentEditingExerciseData((prev) => ({
-          ...prev,
-          questions: prev.questions.filter((_, i) => i !== index),
-        }));
+      toast.warn(
+        "Please select a topic and an exercise before deleting a question."
+      );
+      return;
+    }
+
+    const localQuestions = currentEditingExerciseData.questions || [];
+    if (indexToDelete < 0 || indexToDelete >= localQuestions.length) {
+      console.warn(
+        "Invalid index for deleting question based on local data:",
+        indexToDelete
+      );
+      toast.warn("Cannot delete question: Invalid index.");
+      return;
+    }
+
+    const exerciseIdForUserAnswers = selectedExercise.id;
+    const questionIdentifierForUserAnswers = indexToDelete;
+
+    const exerciseTitle = selectedExercise.title || "this exercise";
+    const questionTextPreview =
+      localQuestions[indexToDelete]?.questionText.substring(0, 30) + "..." ||
+      `Question ${indexToDelete + 1}`;
+
+    if (
+      window.confirm(
+        `Are you sure you want to delete "${questionTextPreview}" from "${exerciseTitle}"? This will update the database and attempt to delete related user answers. This action cannot be undone.`
+      )
+    ) {
+      setIsSubmitting(true);
+      try {
+        const latestExerciseDetail = await fetchReadingExerciseDetail(
+          upperLevelId,
+          selectedTopic.id,
+          selectedExercise.id
+        );
+
+        if (!latestExerciseDetail) {
+          toast.error(
+            "Failed to fetch the latest exercise data. Please try again."
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
+        const currentQuestionsFromDB = latestExerciseDetail.questions || [];
+        if (
+          indexToDelete < 0 ||
+          indexToDelete >= currentQuestionsFromDB.length
+        ) {
+          toast.error(
+            "Question index is out of sync with the database. Please refresh and try again."
+          );
+          setIsSubmitting(false);
+          await loadExerciseDetail(selectedExercise.id);
+          return;
+        }
+
+        const newQuestions = currentQuestionsFromDB.filter(
+          (_, i) => i !== indexToDelete
+        );
+        const updatedExerciseDataForApi = {
+          script: latestExerciseDetail.script,
+          questions: newQuestions,
+        };
+
+        const successUpdateExercise = await updateReadingExerciseDetail(
+          upperLevelId,
+          selectedTopic.id,
+          selectedExercise.id,
+          updatedExerciseDataForApi
+        );
+
+        if (successUpdateExercise) {
+          setCurrentEditingExerciseData(updatedExerciseDataForApi);
+          setInitialExerciseDetailStateForComparison(
+            JSON.stringify(updatedExerciseDataForApi)
+          );
+          setSelectedExercise((prev) => ({
+            ...prev,
+            script: updatedExerciseDataForApi.script,
+            questions: newQuestions,
+          }));
+          toast.success("Question deleted successfully from the exercise.");
+
+          console.log(
+            `Proceeding to delete user answers for exerciseId: ${exerciseIdForUserAnswers}, questionIndex: ${questionIdentifierForUserAnswers}`
+          );
+          const userAnswerDeletionResult = await deleteUserAnswersForQuestion(
+            exerciseIdForUserAnswers,
+            questionIdentifierForUserAnswers
+          );
+
+          // Bỏ TOAST.INFO ở đây
+          if (userAnswerDeletionResult.success) {
+            console.log(
+              `User answer deletion status: success, operations: ${userAnswerDeletionResult.operations}`
+            );
+          } else {
+            console.error(
+              "Failed to delete user answers:",
+              userAnswerDeletionResult.message
+            );
+            // Toast lỗi (nếu có) đã được xử lý trong service
+          }
+        } else {
+          await loadExerciseDetail(selectedExercise.id);
+        }
+      } catch (error) {
+        console.error("Error during question deletion process:", error);
+        toast.error(
+          "An unexpected error occurred while deleting the question."
+        );
+        if (selectedExercise && selectedExercise.id) {
+          await loadExerciseDetail(selectedExercise.id);
+        }
+      } finally {
+        setIsSubmitting(false);
       }
-    } else {
-      console.warn("Invalid index for deleting question:", index);
     }
   };
 
-  // --- Handler Lưu Thay Đổi cho Exercise Detail (dùng lại "script") ---
   const handleSaveChanges = async () => {
     if (
       !selectedTopic ||
@@ -466,14 +578,10 @@ const ReadingPage = () => {
       toast.warn("Please select a topic and an exercise before saving.");
       return;
     }
-
-    // --- Validation (Kiểm tra script và questions) ---
     if (!currentEditingExerciseData.script?.trim()) {
-      // Kiểm tra script
-      toast.warn("Script cannot be empty."); // Đổi message
+      toast.warn("Script cannot be empty.");
       return;
     }
-    // Validation questions giữ nguyên
     for (const [index, q] of (
       currentEditingExerciseData.questions || []
     ).entries()) {
@@ -497,25 +605,21 @@ const ReadingPage = () => {
         return;
       }
     }
-    // --- Kết thúc Validation ---
 
     setIsSubmitting(true);
-    // Gọi service với dữ liệu { script, questions }
     const success = await updateReadingExerciseDetail(
       upperLevelId,
       selectedTopic.id,
       selectedExercise.id,
-      currentEditingExerciseData // Truyền object chứa { script, questions }
+      currentEditingExerciseData
     );
     if (success) {
-      // Cập nhật lại initial state để hasChanges thành false
       setInitialExerciseDetailStateForComparison(
         JSON.stringify(currentEditingExerciseData)
       );
-      // Cập nhật lại state selectedExercise
       setSelectedExercise((prev) => ({
         ...prev,
-        script: currentEditingExerciseData.script, // Cập nhật script
+        script: currentEditingExerciseData.script,
         questions: currentEditingExerciseData.questions,
       }));
       toast.success("Changes saved successfully!");
@@ -523,14 +627,12 @@ const ReadingPage = () => {
     setIsSubmitting(false);
   };
 
-  // Check if changes were made (So sánh JSON string của script và questions)
   const hasChanges = useMemo(() => {
     if (!selectedExercise || initialExerciseDetailStateForComparison === null) {
       return false;
     }
-    // So sánh state hiện tại (script & questions) với state ban đầu
     const currentComparableState = JSON.stringify({
-      script: currentEditingExerciseData.script, // Đổi lại thành script
+      script: currentEditingExerciseData.script,
       questions: currentEditingExerciseData.questions,
     });
     return currentComparableState !== initialExerciseDetailStateForComparison;
@@ -540,7 +642,6 @@ const ReadingPage = () => {
     initialExerciseDetailStateForComparison,
   ]);
 
-  // --- Render Logic (Đổi lại label/placeholder/binding cho script) ---
   return (
     <div
       className={`speaking-container ${
@@ -552,22 +653,20 @@ const ReadingPage = () => {
           : ""
       }`}
     >
-      {/* Sidebar: Danh sách Reading Topics */}
       <div className="topic-sidebar">
-        {/* ... (Phần Topic List giữ nguyên như trước, dùng ID) ... */}
-        <h2>Reading Topics</h2>
+        <h2>Reading Topics ({upperLevelId})</h2>
         <button
           className="add-topic"
           onClick={() =>
             !isSubmitting && setShowAddTopicInput(!showAddTopicInput)
           }
           style={{ marginBottom: "10px" }}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isLoadingTopics}
         >
           + Add Topic
         </button>
         {showAddTopicInput && (
-          <div style={{ marginBottom: "16px" }}>
+          <div style={{ marginBottom: "16px", display: "flex" }}>
             <input
               type="text"
               value={newTopicName}
@@ -575,8 +674,10 @@ const ReadingPage = () => {
               placeholder="Enter new topic name..."
               style={{
                 padding: "8px",
-                width: "calc(70% - 5px)",
+                flexGrow: 1,
                 marginRight: "5px",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
               }}
               disabled={isSubmitting}
             />
@@ -584,7 +685,6 @@ const ReadingPage = () => {
               className="add-question-btn-save"
               onClick={handleAddTopic}
               disabled={isSubmitting || !newTopicName.trim()}
-              style={{ width: "auto", padding: "8px 12px" }}
             >
               Save
             </button>
@@ -594,63 +694,60 @@ const ReadingPage = () => {
           <p>Loading topics...</p>
         ) : (
           <ul>
-            {Array.isArray(topics) && topics.length > 0
-              ? topics.map((topic) => (
-                  <li
-                    key={topic.id}
-                    className={selectedTopic?.id === topic.id ? "active" : ""}
-                    onClick={() => handleSelectTopic(topic)}
-                    style={{ pointerEvents: isSubmitting ? "none" : "auto" }}
+            {Array.isArray(topics) && topics.length > 0 ? (
+              topics.map((topic) => (
+                <li
+                  key={topic.id}
+                  className={selectedTopic?.id === topic.id ? "active" : ""}
+                  onClick={() => handleSelectTopic(topic)}
+                  style={{ pointerEvents: isSubmitting ? "none" : "auto" }}
+                >
+                  <span
+                    style={{
+                      flexGrow: 1,
+                      marginRight: "10px",
+                      wordBreak: "break-word",
+                    }}
                   >
-                    <span
-                      style={{
-                        flexGrow: 1,
-                        marginRight: "10px",
-                        wordBreak: "break-word",
+                    {topic.topicName}
+                  </span>
+                  <div className="edit-delete-btn-container">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditTopicModal(topic);
                       }}
+                      className="edit-topic"
+                      disabled={isSubmitting}
+                      title="Edit Topic Name"
                     >
-                      {topic.topicName}
-                    </span>
-                    <div className="edit-delete-btn-container">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditTopicModal(topic);
-                        }}
-                        className="edit-topic"
-                        style={{ cursor: "pointer" }}
-                        disabled={isSubmitting}
-                        title="Edit Topic Name"
-                      >
-                        📝
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteTopic(topic);
-                        }}
-                        className="delete-topic"
-                        style={{ cursor: "pointer" }}
-                        disabled={isSubmitting}
-                        title="Delete Topic"
-                      >
-                        ❌
-                      </button>
-                    </div>
-                  </li>
-                ))
-              : !isLoadingTopics && <li>No topics found.</li>}
+                      📝
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteTopic(topic);
+                      }}
+                      className="delete-topic"
+                      disabled={isSubmitting}
+                      title="Delete Topic"
+                    >
+                      ❌
+                    </button>
+                  </div>
+                </li>
+              ))
+            ) : (
+              <li>No topics found for level {upperLevelId}.</li>
+            )}
           </ul>
         )}
       </div>
 
-      {/* Detail Area: Exercises List & Exercise Detail Editor */}
       <div className="topic-detail">
         {selectedTopic ? (
           <>
-            {/* --- Section Hiển thị Exercises của Topic --- */}
             <div className="exercise-section" style={{ marginBottom: "30px" }}>
-              {/* ... (Phần Exercise List giữ nguyên như trước, dùng ID) ... */}
               <div
                 style={{
                   display: "flex",
@@ -667,7 +764,6 @@ const ReadingPage = () => {
                     setShowAddExerciseInput(!showAddExerciseInput)
                   }
                   disabled={isSubmitting || isLoadingExercises}
-                  style={{ width: "auto", padding: "8px 12px" }}
                 >
                   + Add Exercise
                 </button>
@@ -679,6 +775,7 @@ const ReadingPage = () => {
                     padding: "10px",
                     backgroundColor: "#f0f0f0",
                     borderRadius: "5px",
+                    display: "flex",
                   }}
                 >
                   <input
@@ -688,8 +785,10 @@ const ReadingPage = () => {
                     placeholder="Enter new exercise title..."
                     style={{
                       padding: "8px",
-                      width: "calc(70% - 5px)",
+                      flexGrow: 1,
                       marginRight: "5px",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
                     }}
                     disabled={isSubmitting}
                   />
@@ -697,79 +796,75 @@ const ReadingPage = () => {
                     className="add-question-btn-save"
                     onClick={handleAddExercise}
                     disabled={isSubmitting || !newExerciseTitle.trim()}
-                    style={{ width: "auto", padding: "8px 12px" }}
                   >
                     Save Exercise
                   </button>
                 </div>
               )}
               {isLoadingExercises ? (
-                <p>Loading exercises...</p>
+                <p>Loading exercises for {selectedTopic.topicName}...</p>
               ) : (
                 <ul className="exercise-list">
-                  {Array.isArray(topicExercises) && topicExercises.length > 0
-                    ? topicExercises.map((exercise) => (
-                        <li
-                          key={exercise.id}
-                          className={
-                            selectedExercise?.id === exercise.id ? "active" : ""
-                          }
-                          onClick={() => handleSelectExercise(exercise)}
+                  {Array.isArray(topicExercises) &&
+                  topicExercises.length > 0 ? (
+                    topicExercises.map((exercise) => (
+                      <li
+                        key={exercise.id}
+                        className={
+                          selectedExercise?.id === exercise.id ? "active" : ""
+                        }
+                        onClick={() => handleSelectExercise(exercise)}
+                        style={{
+                          pointerEvents: isSubmitting ? "none" : "auto",
+                        }}
+                      >
+                        <span
                           style={{
-                            pointerEvents: isSubmitting ? "none" : "auto",
+                            flexGrow: 1,
+                            marginRight: "10px",
+                            wordBreak: "break-word",
                           }}
                         >
-                          <span
-                            style={{
-                              flexGrow: 1,
-                              marginRight: "10px",
-                              wordBreak: "break-word",
+                          {exercise.title}
+                        </span>
+                        <div className="edit-delete-btn-container">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditExerciseModal(exercise);
                             }}
+                            className="edit-topic"
+                            disabled={isSubmitting}
+                            title="Edit Exercise Title"
                           >
-                            {exercise.title}
-                          </span>
-                          <div className="edit-delete-btn-container">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenEditExerciseModal(exercise);
-                              }}
-                              className="edit-topic"
-                              style={{ cursor: "pointer" }}
-                              disabled={isSubmitting}
-                              title="Edit Exercise Title"
-                            >
-                              📝
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteExercise(exercise);
-                              }}
-                              className="delete-topic"
-                              style={{ cursor: "pointer" }}
-                              disabled={isSubmitting}
-                              title="Delete Exercise"
-                            >
-                              ❌
-                            </button>
-                          </div>
-                        </li>
-                      ))
-                    : !isLoadingExercises && (
-                        <li>No exercises found for this topic.</li>
-                      )}
+                            📝
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteExercise(exercise);
+                            }}
+                            className="delete-topic"
+                            disabled={isSubmitting}
+                            title="Delete Exercise"
+                          >
+                            ❌
+                          </button>
+                        </div>
+                      </li>
+                    ))
+                  ) : (
+                    <li>No exercises found for this topic.</li>
+                  )}
                 </ul>
               )}
             </div>
 
-            {/* --- Section Chỉnh sửa Exercise Detail (dùng lại "script") --- */}
             {selectedExercise ? (
               <div
                 className="exercise-detail-editor"
                 style={{ borderTop: "2px solid #ccc", paddingTop: "20px" }}
               >
-                {/* Header: Title và nút Save Changes */}
                 <div
                   style={{
                     display: "flex",
@@ -778,41 +873,34 @@ const ReadingPage = () => {
                     marginBottom: "20px",
                   }}
                 >
-                  <h2>{selectedExercise.title} - Details</h2>
+                  <h2>Edit: {selectedExercise.title}</h2>
                   {hasChanges && (
                     <button
                       className="add-question-btn-save"
                       onClick={handleSaveChanges}
                       disabled={isSubmitting}
-                      style={{
-                        backgroundColor: "#4CAF50",
-                        color: "white",
-                        width: "auto",
-                        padding: "8px 16px",
-                      }}
+                      style={{ backgroundColor: "#4CAF50", color: "white" }}
                     >
                       {isSubmitting ? "Saving..." : "Save Changes"}
                     </button>
                   )}
                 </div>
-
-                {/* Script Input (Đổi lại từ Reading Text) */}
                 <div className="form-group" style={{ marginBottom: "20px" }}>
                   <label
-                    htmlFor="readingScript" // Đổi lại htmlFor
+                    htmlFor="readingScript"
                     style={{
                       display: "block",
                       marginBottom: "5px",
                       fontWeight: "bold",
                     }}
                   >
-                    Script / Reading Passage: {/* Đổi lại Label */}
+                    Script / Reading Passage:
                   </label>
                   <textarea
-                    id="readingScript" // Đổi lại id
-                    value={currentEditingExerciseData.script} // Bind với script
-                    onChange={handleScriptChange} // Dùng handler script
-                    placeholder="Enter the script or reading passage here..." // Đổi placeholder
+                    id="readingScript"
+                    value={currentEditingExerciseData.script}
+                    onChange={handleScriptChange}
+                    placeholder="Enter the script or reading passage here..."
                     rows={10}
                     style={{
                       width: "100%",
@@ -825,10 +913,7 @@ const ReadingPage = () => {
                     disabled={isSubmitting}
                   />
                 </div>
-
-                {/* Questions Section (Giữ nguyên logic render Questions) */}
                 <div className="questions-section">
-                  {/* ... (Phần render questions giữ nguyên như trước) ... */}
                   <h3
                     style={{
                       borderBottom: "1px solid #eee",
@@ -871,7 +956,7 @@ const ReadingPage = () => {
                               fontSize: "1.2em",
                             }}
                             disabled={isSubmitting}
-                            title="Delete Question"
+                            title="Delete This Question"
                           >
                             ❌
                           </button>
@@ -896,7 +981,12 @@ const ReadingPage = () => {
                               )
                             }
                             placeholder="Enter question text"
-                            style={{ width: "100%", padding: "8px" }}
+                            style={{
+                              width: "100%",
+                              padding: "8px",
+                              border: "1px solid #ccc",
+                              borderRadius: "3px",
+                            }}
                             disabled={isSubmitting}
                           />
                         </div>
@@ -920,7 +1010,9 @@ const ReadingPage = () => {
                             >
                               <input
                                 type="radio"
-                                name={`correctAnswer_Reading_${selectedExercise.id}_${index}`}
+                                name={`correctAnswer_Reading_${
+                                  selectedExercise.id
+                                }_${q.id || index}`}
                                 value={optionKey}
                                 checked={q.correctAnswer === optionKey}
                                 onChange={(e) =>
@@ -939,6 +1031,7 @@ const ReadingPage = () => {
                                 style={{
                                   marginRight: "5px",
                                   fontWeight: "bold",
+                                  minWidth: "20px",
                                 }}
                               >
                                 {optionKey}.
@@ -956,7 +1049,12 @@ const ReadingPage = () => {
                                   )
                                 }
                                 placeholder={`Option ${optionKey}`}
-                                style={{ flexGrow: 1, padding: "6px" }}
+                                style={{
+                                  flexGrow: 1,
+                                  padding: "6px",
+                                  border: "1px solid #ccc",
+                                  borderRadius: "3px",
+                                }}
                                 disabled={isSubmitting}
                               />
                             </div>
@@ -980,35 +1078,48 @@ const ReadingPage = () => {
                     marginTop: "20px",
                     fontStyle: "italic",
                     color: "#555",
+                    textAlign: "center",
                   }}
                 >
                   Select an exercise from the list above to view or edit its
-                  details, or add a new one.
+                  details, or add a new one if the list is empty.
                 </p>
               )
             )}
           </>
         ) : (
-          <p>
-            Select a reading topic from the sidebar to manage its exercises.
-          </p>
+          !isLoadingTopics && (
+            <p
+              style={{
+                textAlign: "center",
+                marginTop: "20px",
+                fontStyle: "italic",
+                color: "#777",
+              }}
+            >
+              Select a reading topic from the sidebar to manage its exercises.
+              If no topics exist for level {upperLevelId}, please add one.
+            </p>
+          )
         )}
       </div>
 
-      {/* --- Modals (Giữ nguyên như trước, dùng ID và hiển thị tên từ object) --- */}
-      {/* ... (Modals giữ nguyên cấu trúc như phiên bản trước) ... */}
       {showEditTopicModal && topicToEdit && (
         <div className="edit-topic-modal">
+          {" "}
           <div className="modal-content">
-            <h3>Edit Topic Name</h3>
+            {" "}
+            <h3>Edit Topic Name</h3>{" "}
             <input
               type="text"
               value={editingTopicName}
               onChange={(e) => setEditingTopicName(e.target.value)}
               placeholder="Enter new topic name..."
               disabled={isSubmitting}
-            />
-            <div style={{ marginTop: "15px" }}>
+              style={{ width: "100%", padding: "10px", marginBottom: "15px" }}
+            />{" "}
+            <div>
+              {" "}
               <button
                 className="btn-modal-save"
                 onClick={handleEditTopicName}
@@ -1018,60 +1129,76 @@ const ReadingPage = () => {
                   editingTopicName.trim() === topicToEdit.topicName
                 }
               >
-                {isSubmitting ? "Saving..." : "Save"}
-              </button>
+                {" "}
+                {isSubmitting ? "Saving..." : "Save"}{" "}
+              </button>{" "}
               <button
                 className="btn-modal-cancel"
                 onClick={() => !isSubmitting && setShowEditTopicModal(false)}
                 disabled={isSubmitting}
               >
-                Cancel
-              </button>
-            </div>
-          </div>
+                {" "}
+                Cancel{" "}
+              </button>{" "}
+            </div>{" "}
+          </div>{" "}
         </div>
       )}
       {showConfirmDeleteTopic && topicToDelete && (
         <div className="confirm-delete-modal">
+          {" "}
           <div className="modal-content">
-            <h3>Delete Topic "{topicToDelete.topicName}"?</h3>
+            {" "}
+            <h3>Delete Topic "{topicToDelete.topicName}"?</h3>{" "}
             <p>
+              {" "}
               This will delete the topic and <strong>all its exercises</strong>.
-              (ID: {topicToDelete.id}) This action cannot be undone.
-            </p>
-            <div style={{ marginTop: "15px" }}>
+              This action cannot be undone.{" "}
+            </p>{" "}
+            <div>
+              {" "}
               <button
                 onClick={confirmDeleteTopic}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >
-                {isSubmitting ? "Deleting..." : "Yes, Delete"}
-              </button>
+                {" "}
+                {isSubmitting ? "Deleting..." : "Yes, Delete"}{" "}
+              </button>{" "}
               <button
                 onClick={cancelDeleteTopic}
                 disabled={isSubmitting}
                 className="cancel-btn"
               >
-                No, Cancel
-              </button>
-            </div>
-          </div>
+                {" "}
+                No, Cancel{" "}
+              </button>{" "}
+            </div>{" "}
+          </div>{" "}
         </div>
       )}
       {showEditExerciseModal && exerciseToEdit && selectedTopic && (
         <div className="edit-topic-modal">
+          {" "}
           <div className="modal-content">
-            <h3>Edit Exercise Title</h3>
-            <p>Topic: {selectedTopic?.topicName}</p>
-            <p>Exercise (current): {exerciseToEdit?.title}</p>
+            {" "}
+            <h3>Edit Exercise Title</h3>{" "}
+            <p>
+              <strong>Topic:</strong> {selectedTopic?.topicName}
+            </p>{" "}
+            <p style={{ marginBottom: "10px" }}>
+              <strong>Current Title:</strong> {exerciseToEdit?.title}
+            </p>{" "}
             <input
               type="text"
               value={editingExerciseTitle}
               onChange={(e) => setEditingExerciseTitle(e.target.value)}
               placeholder="Enter new exercise title..."
               disabled={isSubmitting}
-            />
-            <div style={{ marginTop: "15px" }}>
+              style={{ width: "100%", padding: "10px", marginBottom: "15px" }}
+            />{" "}
+            <div>
+              {" "}
               <button
                 className="btn-modal-save"
                 onClick={handleEditExerciseDisplayTitle}
@@ -1082,46 +1209,53 @@ const ReadingPage = () => {
                     editingExerciseTitle.trim() === exerciseToEdit.title)
                 }
               >
-                {isSubmitting ? "Saving..." : "Save"}
-              </button>
+                {" "}
+                {isSubmitting ? "Saving..." : "Save"}{" "}
+              </button>{" "}
               <button
                 className="btn-modal-cancel"
                 onClick={() => !isSubmitting && setShowEditExerciseModal(false)}
                 disabled={isSubmitting}
               >
                 Cancel
-              </button>
-            </div>
-          </div>
+              </button>{" "}
+            </div>{" "}
+          </div>{" "}
         </div>
       )}
       {showConfirmDeleteExercise && exerciseToDelete && selectedTopic && (
         <div className="confirm-delete-modal">
+          {" "}
           <div className="modal-content">
-            <h3>Delete Exercise "{exerciseToDelete?.title}"?</h3>
-            <p>Topic: {selectedTopic?.topicName}</p>
+            {" "}
+            <h3>Delete Exercise "{exerciseToDelete?.title}"?</h3>{" "}
             <p>
-              This will delete the exercise script and questions.{" "}
-              {/* Đổi lại text */}
-              (ID: {exerciseToDelete?.id}) This action cannot be undone.
-            </p>
-            <div style={{ marginTop: "15px" }}>
+              <strong>Topic:</strong> {selectedTopic?.topicName}
+            </p>{" "}
+            <p>
+              {" "}
+              This will delete the exercise script and all its questions. This
+              action cannot be undone.{" "}
+            </p>{" "}
+            <div>
+              {" "}
               <button
                 onClick={confirmDeleteExercise}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >
-                {isSubmitting ? "Deleting..." : "Yes, Delete"}
-              </button>
+                {" "}
+                {isSubmitting ? "Deleting..." : "Yes, Delete"}{" "}
+              </button>{" "}
               <button
                 onClick={cancelDeleteExercise}
                 disabled={isSubmitting}
                 className="cancel-btn"
               >
                 No, Cancel
-              </button>
-            </div>
-          </div>
+              </button>{" "}
+            </div>{" "}
+          </div>{" "}
         </div>
       )}
     </div>
