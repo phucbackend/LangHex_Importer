@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import "../css/speaking.css";
+import "../css/speaking.css"; // Đảm bảo đường dẫn này chính xác
 import {
   fetchSpeakingTopics,
   addQuestionToTopic,
@@ -9,7 +9,7 @@ import {
   addTopic,
   deleteTopic,
   editTopic,
-} from "../Model/SpeakingService";
+} from "../Model/SpeakingService"; // Đảm bảo đường dẫn này chính xác
 
 const SpeakingPage = () => {
   const { levelId } = useParams();
@@ -18,25 +18,26 @@ const SpeakingPage = () => {
   const [selectedTopicTitle, setSelectedTopicTitle] = useState(null);
   const [newQuestion, setNewQuestion] = useState("");
   const [showAddInput, setShowAddInput] = useState(false);
-  const [editingQuestionKey, setEditingQuestionKey] = useState(null);
+  const [editingQuestionKey, setEditingQuestionKey] = useState(null); // Sẽ lưu Firebase key của câu hỏi
   const [editedQuestionText, setEditedQuestionText] = useState("");
 
   const [newTopicTitle, setNewTopicTitle] = useState("");
   const [showAddTopicInput, setShowAddTopicInput] = useState(false);
   const [editingTopicTitle, setEditingTopicTitle] = useState("");
-  const [showEditTopicModal, setShowEditTopicModal] = useState(false); // Popup modal state
+  const [showEditTopicModal, setShowEditTopicModal] = useState(false);
 
   const [newTopicError, setNewTopicError] = useState(false);
   const [newQuestionError, setNewQuestionError] = useState(false);
   const [editQuestionError, setEditQuestionError] = useState(false);
 
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false); // Modal for confirming delete
-  const [questionToDelete, setQuestionToDelete] = useState(null); // Question to delete
-  const [topicToDelete, setTopicToDelete] = useState(null); // Topic to delete
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [questionToDelete, setQuestionToDelete] = useState(null); // Sẽ lưu Firebase key của câu hỏi
+  const [topicToDelete, setTopicToDelete] = useState(null); // Sẽ lưu title của chủ đề
 
   useEffect(() => {
     const loadData = async () => {
       const fetchedTopics = await fetchSpeakingTopics(upperLevelId);
+      // Service đã trả về questions là [{key, text}, ...]
       const sortedTopics = fetchedTopics.sort((a, b) =>
         a.title.localeCompare(b.title)
       );
@@ -45,17 +46,22 @@ const SpeakingPage = () => {
     loadData();
   }, [upperLevelId]);
 
+  const refreshTopics = async () => {
+    const updatedTopics = await fetchSpeakingTopics(upperLevelId);
+    const sortedTopics = updatedTopics.sort((a, b) =>
+      a.title.localeCompare(b.title)
+    );
+    setTopics(sortedTopics);
+    return sortedTopics; // Trả về để có thể sử dụng nếu cần
+  };
+
   const handleAddTopic = async () => {
     if (!newTopicTitle.trim()) {
       setNewTopicError(true);
       return;
     }
     await addTopic(upperLevelId, newTopicTitle.trim());
-    const updatedTopics = await fetchSpeakingTopics(upperLevelId);
-    const sortedTopics = updatedTopics.sort((a, b) =>
-      a.title.localeCompare(b.title)
-    );
-    setTopics(sortedTopics);
+    await refreshTopics();
     setNewTopicTitle("");
     setShowAddTopicInput(false);
     setNewTopicError(false);
@@ -64,27 +70,22 @@ const SpeakingPage = () => {
   const handleEditTopic = async () => {
     const trimmedNewTitle = editingTopicTitle.trim();
 
-    // Kiểm tra nếu tiêu đề không thay đổi
     if (trimmedNewTitle === selectedTopicTitle) {
       setShowEditTopicModal(false);
       return;
     }
 
     if (!trimmedNewTitle) {
-      setNewTopicError(true);
+      setNewTopicError(true); // Có thể dùng một state error riêng cho edit topic nếu cần
       return;
     }
 
     await editTopic(upperLevelId, selectedTopicTitle, trimmedNewTitle);
-    const updatedTopics = await fetchSpeakingTopics(upperLevelId);
-    const sortedTopics = updatedTopics.sort((a, b) =>
-      a.title.localeCompare(b.title)
-    );
-    setTopics(sortedTopics);
-    setSelectedTopicTitle(trimmedNewTitle);
+    await refreshTopics();
+    setSelectedTopicTitle(trimmedNewTitle); // Cập nhật selectedTopicTitle sau khi sửa đổi thành công
     setEditingTopicTitle("");
     setShowEditTopicModal(false);
-    setNewTopicError(false);
+    setNewTopicError(false); // Reset error
   };
 
   const handleAddQuestion = async () => {
@@ -93,70 +94,80 @@ const SpeakingPage = () => {
       return;
     }
 
-    await addQuestionToTopic(upperLevelId, selectedTopicTitle, newQuestion);
-    const updatedTopics = await fetchSpeakingTopics(upperLevelId);
-    const sortedTopics = updatedTopics.sort((a, b) =>
-      a.title.localeCompare(b.title)
+    await addQuestionToTopic(
+      upperLevelId,
+      selectedTopicTitle,
+      newQuestion.trim()
     );
-    setTopics(sortedTopics);
+    await refreshTopics();
     setNewQuestion("");
     setShowAddInput(false);
     setNewQuestionError(false);
   };
 
-  const handleEditQuestion = async (questionKey) => {
+  const handleEditQuestion = async () => {
+    // Không cần tham số questionKey ở đây nữa
     if (!editedQuestionText.trim()) {
       setEditQuestionError(true);
       return;
     }
 
+    // editingQuestionKey đã là Firebase key được set khi bấm nút sửa
     await editQuestionInTopic(
       upperLevelId,
       selectedTopicTitle,
-      questionKey,
-      editedQuestionText
+      editingQuestionKey,
+      editedQuestionText.trim()
     );
-    const updatedTopics = await fetchSpeakingTopics(upperLevelId);
-    const sortedTopics = updatedTopics.sort((a, b) =>
-      a.title.localeCompare(b.title)
-    );
-    setTopics(sortedTopics);
+    await refreshTopics();
     setEditingQuestionKey(null);
     setEditedQuestionText("");
     setEditQuestionError(false);
   };
 
-  const handleDeleteQuestion = (questionKey) => {
+  const handleDeleteQuestion = (firebaseQuestionKey) => {
+    // Nhận Firebase key
     setShowConfirmDelete(true);
-    setQuestionToDelete(questionKey);
+    setQuestionToDelete(firebaseQuestionKey); // Lưu Firebase key để xóa
+    setTopicToDelete(null); // Đảm bảo chỉ một loại xóa được thực hiện
   };
 
   const handleDeleteTopic = (topicTitle) => {
     setShowConfirmDelete(true);
-    setTopicToDelete(topicTitle);
+    setTopicToDelete(topicTitle); // Lưu title của chủ đề để xóa
+    setQuestionToDelete(null); // Đảm bảo chỉ một loại xóa được thực hiện
   };
 
   const confirmDelete = async () => {
     if (questionToDelete) {
+      // questionToDelete là Firebase key
       await deleteQuestionFromTopic(
         upperLevelId,
         selectedTopicTitle,
         questionToDelete
       );
     } else if (topicToDelete) {
+      // topicToDelete là title
       await deleteTopic(upperLevelId, topicToDelete);
     }
-    const updatedTopics = await fetchSpeakingTopics(upperLevelId);
-    const sortedTopics = updatedTopics.sort((a, b) =>
-      a.title.localeCompare(b.title)
-    );
-    setTopics(sortedTopics);
-    setSelectedTopicTitle(null);
+    const updatedTopics = await refreshTopics();
+
+    // Nếu chủ đề đang chọn bị xóa, thì bỏ chọn nó
+    if (topicToDelete && topicToDelete === selectedTopicTitle) {
+      setSelectedTopicTitle(null);
+    }
+    // Nếu chủ đề chứa câu hỏi bị xóa vẫn là chủ đề đang chọn, không cần thay đổi selectedTopicTitle
+    // Trừ khi sau khi xóa câu hỏi, chủ đề không còn câu hỏi nào (logic này tùy thuộc yêu cầu, hiện tại không xử lý)
+
+    setQuestionToDelete(null);
+    setTopicToDelete(null);
     setShowConfirmDelete(false);
   };
 
   const cancelDelete = () => {
     setShowConfirmDelete(false);
+    setQuestionToDelete(null);
+    setTopicToDelete(null);
   };
 
   const selectedTopic = topics.find((t) => t.title === selectedTopicTitle);
@@ -202,20 +213,22 @@ const SpeakingPage = () => {
         <ul>
           {topics.map((topic) => (
             <li
-              key={topic.title}
+              key={topic.id} // Sử dụng topic.id (Firebase key của chủ đề) làm key
               className={selectedTopicTitle === topic.title ? "active" : ""}
               onClick={() => {
                 setSelectedTopicTitle(topic.title);
-                setShowAddInput(false);
-                setEditingQuestionKey(null);
+                setShowAddInput(false); // Reset input thêm câu hỏi khi chọn topic mới
+                setEditingQuestionKey(null); // Reset trạng thái sửa câu hỏi
               }}
             >
               {topic.title}
               <div className="edit-delete-btn-container">
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation(); // Ngăn li's onClick triggered
+                    setSelectedTopicTitle(topic.title); // Đảm bảo topic này được chọn trước khi mở modal
                     setEditingTopicTitle(topic.title);
-                    setShowEditTopicModal(true); // Open the modal
+                    setShowEditTopicModal(true);
                   }}
                   className="edit-topic"
                   style={{ cursor: "pointer" }}
@@ -223,7 +236,10 @@ const SpeakingPage = () => {
                   📝
                 </button>
                 <button
-                  onClick={() => handleDeleteTopic(topic.title)}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Ngăn li's onClick triggered
+                    handleDeleteTopic(topic.title);
+                  }}
                   className="delete-topic"
                   style={{ cursor: "pointer" }}
                 >
@@ -236,7 +252,7 @@ const SpeakingPage = () => {
       </div>
 
       <div className="topic-detail">
-        {selectedTopicTitle ? (
+        {selectedTopicTitle && selectedTopic ? ( // Đảm bảo selectedTopic tồn tại
           <>
             <div
               style={{
@@ -250,7 +266,7 @@ const SpeakingPage = () => {
                 className="add-question-btn"
                 onClick={() => {
                   setShowAddInput(!showAddInput);
-                  setEditingQuestionKey(null);
+                  setEditingQuestionKey(null); // Nếu đang sửa, hủy sửa khi bấm add
                   setEditedQuestionText("");
                 }}
               >
@@ -278,7 +294,7 @@ const SpeakingPage = () => {
                   }}
                 />
                 <button
-                  className="add-question-btn"
+                  className="add-question-btn" // CSS class có thể cần xem lại nếu khác "add-question-btn-save"
                   onClick={handleAddQuestion}
                 >
                   Save
@@ -287,10 +303,12 @@ const SpeakingPage = () => {
             )}
 
             <ul className="question-list">
-              {selectedTopic?.questions.map((q, idx) => (
-                <li key={idx}>
+              {selectedTopic.questions.map((q, idx) => (
+                <li key={q.key}>
+                  {" "}
+                  {/* Sử dụng q.key (Firebase key) làm key */}
                   <strong>{idx + 1}.</strong>{" "}
-                  {editingQuestionKey === idx ? (
+                  {editingQuestionKey === q.key ? ( // So sánh với q.key
                     <>
                       <input
                         type="text"
@@ -309,32 +327,39 @@ const SpeakingPage = () => {
                         }}
                       />
                       <button
-                        onClick={() => handleEditQuestion(`question${idx + 1}`)}
-                        className="add-question-btn"
+                        onClick={handleEditQuestion} // Không truyền tham số
+                        className="add-question-btn" // CSS class
                       >
                         Save
                       </button>
                     </>
                   ) : (
                     <>
-                      {q}
+                      {q.text} {/* Hiển thị q.text */}
                       <div className="edit-delete-btn-container">
                         <button
                           onClick={() => {
-                            setShowAddInput(false);
-                            setEditingQuestionKey(idx);
-                            setEditedQuestionText(q);
+                            setShowAddInput(false); // Ẩn input thêm nếu đang mở
+                            setEditingQuestionKey(q.key); // Set Firebase key để sửa
+                            setEditedQuestionText(q.text); // Set text hiện tại vào input sửa
+                            setEditQuestionError(false);
                           }}
                           className="edit-delete-btn edit"
+                          style={{
+                            border: "1px solid black",
+                          }}
                         >
                           📝
                         </button>
                         <button
-                          onClick={() =>
-                            handleDeleteQuestion(`question${idx + 1}`)
+                          onClick={
+                            () => handleDeleteQuestion(q.key) // Truyền Firebase key để xóa
                           }
                           className="edit-delete-btn delete"
-                          disabled={selectedTopic?.questions.length <= 1}
+                          style={{
+                            border: "1px solid black",
+                          }}
+                          disabled={selectedTopic.questions.length <= 1}
                         >
                           ❌
                         </button>
@@ -357,15 +382,25 @@ const SpeakingPage = () => {
             <input
               type="text"
               value={editingTopicTitle}
-              onChange={(e) => setEditingTopicTitle(e.target.value)}
+              onChange={(e) => {
+                setEditingTopicTitle(e.target.value);
+                setNewTopicError(false); // Reset error khi thay đổi
+              }}
               placeholder="Enter new topic title..."
+              style={{
+                border: newTopicError ? "2px solid red" : "1px solid #ccc", // Thêm style error
+              }}
             />
             <button className="btn-modal-save" onClick={handleEditTopic}>
               Save
             </button>
             <button
               className="btn-modal-cancel"
-              onClick={() => setShowEditTopicModal(false)}
+              onClick={() => {
+                setShowEditTopicModal(false);
+                setNewTopicError(false); // Reset error khi hủy
+                setEditingTopicTitle(""); // Xóa title đang sửa
+              }}
             >
               Cancel
             </button>

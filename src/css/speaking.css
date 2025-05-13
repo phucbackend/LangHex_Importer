@@ -21,7 +21,7 @@
   color: #333;
 }
 
-.topic-sidebar .add-btn {
+.topic-sidebar .add-btn { /* Giả sử đây là class cho nút "Add Topic" cũ, nếu có */
   background-color: #28a745;
   color: white;
   padding: 10px 14px;
@@ -31,7 +31,6 @@
   font-weight: bold;
   margin-bottom: 20px;
   transition: background-color 0.3s;
-
 }
 
 .topic-sidebar .add-btn:hover {
@@ -64,7 +63,7 @@
   background-color: #e2efff;
 }
 
-.delete-btn {
+.delete-btn { /* Nút delete chung, có thể dùng cho topic hoặc nơi khác */
   background-color: #dc3545;
   color: white;
   padding: 2px 8px;
@@ -94,7 +93,7 @@
   color: #333;
 }
 
-.add-question-btn {
+.add-question-btn { /* Class chung cho các nút "Add" hoặc "Save" màu xanh dương */
   background-color: #007bff;
   color: white;
   padding: 8px 12px;
@@ -103,9 +102,9 @@
   font-size: 14px;
   cursor: pointer;
   transition: background-color 0.3s;
- 
 }
-.add-topic {
+
+.add-topic { /* Nút "+ Add Topic" cụ thể */
   background-color: #007bff;
   color: white;
   padding: 8px 12px;
@@ -114,9 +113,9 @@
   font-size: 14px;
   cursor: pointer;
   transition: background-color 0.3s;
-  width: 150px;
+  width: 150px; /* Có thể giữ hoặc bỏ nếu muốn nó tự động theo nội dung */
 }
-.add-question-btn-save {
+.add-question-btn-save { /* Nút Save khi thêm topic mới hoặc thêm script mới */
   background-color: #007bff;
   color: white;
   padding: 8px 12px;
@@ -125,37 +124,42 @@
   font-size: 14px;
   cursor: pointer;
   transition: background-color 0.3s;
-  width: 80px;
+  width: 80px; /* Có thể giữ hoặc bỏ */
 }
 
 
-.add-question-btn:hover {
+.add-question-btn:hover,
+.add-topic:hover,
+.add-question-btn-save:hover {
   background-color: #0069d9;
 }
 
 
 .question-list {
-  list-style: decimal inside;
+  list-style: none; /* Thay đổi từ decimal inside để kiểm soát số thứ tự tốt hơn */
   margin-top: 10px;
   padding-left: 0;
 }
 
 .question-list li {
-  padding: 8px 0;
-  border-bottom: 1px solid #ccc;
+  padding: 12px 0; /* Tăng padding cho dễ nhìn hơn */
+  border-bottom: 1px solid #ccc; /* Làm mờ đường kẻ hơn một chút */
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  position: relative;
+  align-items: flex-start; /* QUAN TRỌNG: Để textarea và các nút căn chỉnh đúng */
+  gap: 10px; /* Tăng khoảng cách giữa các phần tử con */
+  position: relative; /* Giữ nguyên cho trường hợp cần định vị tuyệt đối các phần tử con khác */
 }
 
+/* Bỏ rule này đi vì chúng ta sẽ không dùng position: absolute cho các nút edit/save/cancel script nữa */
+/*
 .question-list li button {
-  position: absolute; /* Đặt nút ra ngoài cùng bên phải */
-  right: 10px; /* Điều chỉnh khoảng cách từ mép phải */
-  margin-left: 10px; /* Khoảng cách giữa các nút */
+  position: absolute;
+  right: 10px;
+  margin-left: 10px;
 }
+*/
 
-.topic-detail p {
+.topic-detail p { /* Thông báo "Select a topic to view scripts." */
   font-size: 18px;
   font-weight: 600;
   color: #555;
@@ -167,36 +171,76 @@
   transition: background-color 0.3s;
 }
 
-/* Các nút sửa và xóa căn sang bên phải */
+/* Container cho các icon edit/delete của script item (khi không ở chế độ edit) */
 .edit-delete-btn-container {
   display: flex;
-  justify-content: flex-end; /* Điều chỉnh các nút nằm bên phải */
-  gap :10px
+  align-items: center; /* Căn giữa các icon theo chiều dọc */
+  gap: 8px; /* Khoảng cách giữa icon edit và delete */
+  margin-left: auto; /* Đẩy cụm icon này về bên phải */
+  flex-shrink: 0; /* Ngăn không cho co lại */
 }
 
-.edit-delete-btn {
-  background-color: #ff5722; /* Màu nền cho nút sửa/xóa */
+.edit-delete-btn { /* Style chung cho icon edit/delete */
+  background-color: transparent; /* Bỏ màu nền mặc định */
+  border: none;
+  padding: 4px; /* Điều chỉnh padding cho phù hợp */
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 1.1em; /* Kích thước icon */
   cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  display: inline-flex; /* Để căn chỉnh icon tốt hơn */
+  align-items: center;
+  justify-content: center;
 }
 
 .edit-delete-btn.edit {
-  background-color: #03a9f4; /* Màu nền cho nút sửa */
-  margin-right: 60px;
+  color: #03a9f4; /* Màu cho icon edit */
 }
-
+.edit-delete-btn.edit:hover {
+  background-color: rgba(3, 169, 244, 0.1); /* Hiệu ứng hover nhẹ */
+}
 
 .edit-delete-btn.delete {
-  background-color: #eae0df; /* Màu nền cho nút xóa */
+  color: #dc3545; /* Màu cho icon delete */
 }
-.edit-topic {
-  background-color: #03a9f4; /* Màu nền cho nút sửa */
-  margin-right: px;
+.edit-delete-btn.delete:hover {
+  background-color: rgba(220, 53, 69, 0.1); /* Hiệu ứng hover nhẹ */
 }
-.delete-topic {
-   background-color: #eae0df;
+.edit-delete-btn.delete:disabled { /* Style khi nút delete bị vô hiệu hóa */
+    color: #adb5bd;
+    cursor: not-allowed;
+    background-color: transparent;
 }
+
+
+/* Style cho icon edit/delete của Topic item trong sidebar */
+.topic-actions-buttons {
+    display: flex;
+    align-items: center;
+}
+.edit-topic-btn, .delete-topic-btn { /* Nút edit/delete cho topic */
+  background-color: transparent;
+  border: none;
+  padding: 4px;
+  font-size: 1em;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+.edit-topic-btn {
+  color: #03a9f4;
+  margin-right: 5px; /* Khoảng cách giữa icon edit và delete của topic */
+}
+.edit-topic-btn:hover {
+  background-color: rgba(3, 169, 244, 0.1);
+}
+.delete-topic-btn {
+  color: #dc3545;
+}
+.delete-topic-btn:hover {
+  background-color: rgba(220, 53, 69, 0.1);
+}
+
 
 /* Responsive styles */
 @media screen and (max-width: 768px) {
@@ -207,7 +251,7 @@
   .topic-sidebar {
     width: 100%;
     box-shadow: none;
-    padding: 10px;
+    padding: 15px; /* Điều chỉnh padding */
   }
 
   .topic-detail {
@@ -223,22 +267,22 @@
   }
 
   .topic-sidebar ul {
-    margin-top: 20px;
+    margin-top: 15px; /* Điều chỉnh margin */
   }
 
   .question-list li {
     font-size: 14px;
-    padding: 6px 0;
+    padding: 10px 0; /* Điều chỉnh padding */
   }
 
-  .add-question-btn {
-    font-size: 12px;
-    padding: 6px 10px;
+  .add-question-btn, .add-topic, .add-question-btn-save {
+    font-size: 13px; /* Điều chỉnh font */
+    padding: 7px 10px; /* Điều chỉnh padding */
   }
 
-  .delete-btn, .edit-delete-btn {
-    font-size: 12px;
-    padding: 2px 6px;
+  .delete-btn, .edit-delete-btn { /* Áp dụng cho cả icon buttons */
+    font-size: 1em; /* Điều chỉnh kích thước icon */
+    padding: 3px;
   }
 
   .edit-delete-btn-container {
@@ -248,7 +292,7 @@
 
 @media screen and (max-width: 480px) {
   .topic-sidebar {
-    padding: 5px;
+    padding: 10px;
   }
 
   .topic-detail {
@@ -256,98 +300,129 @@
   }
 
   .topic-sidebar h2 {
-    font-size: 16px;
+    font-size: 17px;
   }
 
   .topic-detail h2 {
     font-size: 18px;
   }
 
-  .add-question-btn {
-    font-size: 10px;
-    padding: 4px 8px;
+  .add-question-btn, .add-topic, .add-question-btn-save {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+  .add-topic, .add-question-btn-save {
+    width: auto; /* Cho phép nút co dãn theo nội dung ở màn hình nhỏ */
   }
 
   .delete-btn, .edit-delete-btn {
-    font-size: 10px;
-    padding: 2px 4px;
+    font-size: 0.9em;
+    padding: 2px;
   }
 
   .question-list li {
-    font-size: 12px;
-    padding: 4px 0;
+    font-size: 13px;
+    padding: 8px 0;
   }
 }
-.confirm-delete-modal {
+.confirm-delete-modal,
+.edit-topic-modal {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Tăng độ mờ của backdrop */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000; /* Đảm bảo modal trên cùng */
+  pointer-events: auto; /* Cho phép tương tác với modal */
+  animation: fadeIn 0.2s ease-out; /* Giữ animation */
+}
+
+.modal-content {
   background-color: white;
-  padding: 20px 30px;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  padding: 25px 30px; /* Tăng padding */
   border-radius: 8px;
-  width: 300px;
+  min-width: 320px; /* Tăng chiều rộng tối thiểu */
+  max-width: 90%;   /* Giới hạn chiều rộng tối đa */
   text-align: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease-out;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25); /* Tăng shadow */
 }
 
-.confirm-delete-modal p {
-  font-size: 16px;
-  margin-bottom: 20px;
-  color: #333;
+.modal-content h3 {
+    font-size: 18px;
+    margin-bottom: 20px;
+    color: #333;
 }
 
-.confirm-delete-modal button {
-  background-color: #007bff;
+.confirm-delete-modal .modal-content button, /* Áp dụng cho nút trong confirm delete modal */
+.edit-topic-modal .modal-content button { /* Áp dụng cho nút trong edit topic modal */
   color: white;
   border: none;
-  padding: 8px 16px;
+  padding: 10px 20px; /* Tăng padding nút */
   font-size: 14px;
-  border-radius: 4px;
+  border-radius: 5px; /* Bo tròn góc nhiều hơn */
   cursor: pointer;
-  margin: 0 10px;
-  transition: background-color 0.3s;
+  margin: 10px 5px 0; /* Điều chỉnh margin */
+  transition: background-color 0.3s, transform 0.1s;
+  min-width: 80px; /* Đặt chiều rộng tối thiểu cho nút */
+}
+.confirm-delete-modal .modal-content button:hover,
+.edit-topic-modal .modal-content button:hover {
+    transform: translateY(-1px); /* Hiệu ứng nhấc nhẹ khi hover */
 }
 
-.confirm-delete-modal button:hover {
+/* Nút Yes/Save trong Modal */
+.confirm-delete-modal .modal-content button:first-of-type, /* Nút Yes trong confirm delete */
+.edit-topic-modal .modal-content .btn-modal-save { /* Nút Save trong edit topic */
+  background-color: #007bff;
+}
+.confirm-delete-modal .modal-content button:first-of-type:hover,
+.edit-topic-modal .modal-content .btn-modal-save:hover {
   background-color: #0056b3;
 }
 
-.confirm-delete-modal button:last-child {
-  background-color: #dc3545;
+/* Nút No/Cancel trong Modal */
+.confirm-delete-modal .modal-content button:last-of-type, /* Nút No trong confirm delete */
+.edit-topic-modal .modal-content .btn-modal-cancel { /* Nút Cancel trong edit topic */
+  background-color: #6c757d; /* Màu xám cho cancel/no */
+}
+.confirm-delete-modal .modal-content button:last-of-type:hover,
+.edit-topic-modal .modal-content .btn-modal-cancel:hover {
+  background-color: #545b62;
 }
 
-.confirm-delete-modal button:last-child:hover {
-  background-color: #c82333;
-}
 
 /* Animation for fade-in */
 @keyframes fadeIn {
   from {
     opacity: 0;
+    transform: scale(0.95); /* Thêm hiệu ứng scale nhẹ */
   }
   to {
     opacity: 1;
+    transform: scale(1);
   }
 }
-.question-delete-selected {
+.question-delete-selected { /* Dùng để highlight text khi xóa, nếu có */
   font-weight: bold;
   color: red;
 }
 .speaking-container.disable-all {
-  pointer-events: none; /* Vô hiệu hóa mọi sự kiện chuột */
- /* Giảm độ sáng để hiển thị rõ hơn phần xác nhận xóa */
+  pointer-events: none; /* Vô hiệu hóa mọi sự kiện chuột trên container chính */
+  /* filter: blur(2px); */ /* Có thể thêm hiệu ứng blur nếu muốn */
 }
 
+/* Bỏ phần này vì .confirm-delete-modal đã được định nghĩa ở trên với z-index cao hơn */
+/*
 .speaking-container .confirm-delete-modal {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 10; /* Đảm bảo modal luôn hiển thị trên cùng */
-  
+  z-index: 10;
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
@@ -357,7 +432,10 @@
 .speaking-container .confirm-delete-modal button {
   margin: 10px;
 }
+*/
 
+/* Nút save và cancel trong Edit Topic Modal đã được gộp style ở trên */
+/*
 .btn-modal-save{
   background-color: #007bff;
   color: white;
@@ -371,7 +449,7 @@
 }
 
 .btn-modal-cancel{
-  background-color: #007bff;
+  background-color: #007bff; // Nên đổi màu cho nút cancel này
   color: white;
   border: none;
   padding: 8px 16px;
@@ -381,30 +459,9 @@
   margin: 0 10px;
   transition: background-color 0.3s;
 }
-.confirm-delete-modal,
-.edit-topic-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.4);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 999;
-  pointer-events: auto;
-}
+*/
 
-.modal-content {
-  background-color: white;
-  padding: 24px;
-  border-radius: 8px;
-  min-width: 300px;
-  text-align: center;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); 
-}
-
+/* Nút xác nhận và hủy chung, nếu bạn dùng class này ở đâu đó */
 .confirm-btn {
   background-color: #d9534f;
   color: white;
@@ -413,30 +470,38 @@
   border-radius: 4px;
 }
 
-.cancel-btn {
-  background-color: #5bc0de;
+.cancel-btn { /* Class này có thể dùng cho nút cancel chung */
+  background-color: #6c757d; /* Đổi màu cho nhất quán */
   color: white;
-  padding: 8px 16px;
+  padding: 8px 12px; /* Điều chỉnh padding cho phù hợp */
   border: none;
   border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s;
 }
+.cancel-btn:hover {
+    background-color: #545b62;
+}
+
 
 .edit-topic-modal input {
   width: 100%;
-  padding: 8px 12px;
+  padding: 10px 12px; /* Tăng padding */
   font-size: 14px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  margin-bottom: 16px;
+  border: 1px solid #ced4da; /* Màu border nhẹ nhàng hơn */
+  border-radius: 5px; /* Bo tròn nhiều hơn */
+  margin-bottom: 20px; /* Tăng khoảng cách dưới */
   box-sizing: border-box;
   transition: border-color 0.3s, box-shadow 0.3s;
 }
 .edit-topic-modal input:focus {
   border-color: #007bff;
   outline: none;
-  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* Hiệu ứng focus giống Bootstrap */
 }
 
+/* Styles cho Exercise List (giữ nguyên như bạn cung cấp nếu không cần thay đổi) */
 .exercise-list {
   list-style: none;
   padding: 0;
@@ -447,14 +512,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px; /* Tương tự topic list */
+  padding: 10px 12px;
   margin-bottom: 10px;
-  background-color: #e9ecef; /* Màu nền hơi khác topic list */
+  background-color: #e9ecef;
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.2s, border-left 0.2s;
-  border: 1px solid #ced4da; /* Thêm border nhẹ */
-  border-left: 4px solid transparent; /* Border bên trái để highlight active */
+  border: 1px solid #ced4da;
+  border-left: 4px solid transparent;
 }
 
 .exercise-list li:hover {
@@ -462,47 +527,120 @@
 }
 
 .exercise-list li.active {
-  background-color: #cce5ff; /* Màu active khác topic list một chút */
+  background-color: #cce5ff;
   font-weight: bold;
-  border-left: 4px solid #007bff; /* Highlight active bằng border */
+  border-left: 4px solid #007bff;
 }
 
-/* Style cho khu vực chỉnh sửa chi tiết exercise */
 .exercise-detail-editor {
-    /* Có thể thêm style riêng nếu cần, ví dụ padding, border */
     padding-top: 20px;
     margin-top: 20px;
-    border-top: 1px solid #ddd; /* Phân cách với danh sách exercise */
+    border-top: 1px solid #ddd;
 }
 
-/* Nút Save Changes (điều chỉnh nếu cần) */
-.add-question-btn-save[style*="backgroundColor: #4CAF50"] { /* Target nút save màu xanh lá */
-    padding: 10px 20px; /* Có thể làm nút Save to hơn một chút */
+.add-question-btn-save[style*="backgroundColor: #4CAF50"] {
+    padding: 10px 20px;
     font-size: 15px;
 }
 
-
-/* Đảm bảo các nút trong exercise list item căn chỉnh đúng */
 .exercise-list li .edit-delete-btn-container {
-    /* Giữ nguyên hoặc điều chỉnh các style hiện có của container này */
-    gap: 5px; /* Giảm khoảng cách nếu cần */
+    gap: 5px;
 }
 
 .exercise-list li .edit-delete-btn-container button {
-    padding: 3px 6px; /* Có thể làm nút edit/delete exercise nhỏ hơn */
-    font-size: 1em; /* Điều chỉnh kích thước icon/text */
+    padding: 3px 6px;
+    font-size: 1em;
 }
 
-/* Responsive adjustments nếu cần cho exercise list */
 @media screen and (max-width: 768px) {
     .exercise-list li {
         padding: 8px 10px;
     }
-     .exercise-section h2 { /* Điều chỉnh size title exercise */
-       font-size: 18px;
+    .exercise-section h2 {
+        font-size: 18px;
     }
-    .exercise-detail-editor h2 { /* Điều chỉnh size title detail */
-       font-size: 18px;
+    .exercise-detail-editor h2 {
+        font-size: 18px;
     }
+}
 
+/* Style chung cho textarea */
+textarea {
+  font-family: inherit;
+  padding: 10px; /* Tăng padding */
+  border: 1px solid #ced4da; /* Màu border nhẹ nhàng hơn */
+  border-radius: 5px; /* Bo tròn nhiều hơn */
+  box-sizing: border-box;
+  resize: vertical;
+  line-height: 1.5; /* Cải thiện khả năng đọc */
+  width: 100%; /* Mặc định cho textarea chiếm toàn bộ chiều rộng của container cha */
+}
+textarea:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Style cho script text để xuống dòng và giữ định dạng */
+.topic-detail .question-list li > .script-text-content { /* Sử dụng classname đã thêm trong JSX */
+    padding-bottom: 5px;
+    white-space: pre-wrap; /* Đảm bảo xuống dòng */
+    word-break: break-word; /* Ngăn tràn chữ */
+    flex-grow: 1; /* Cho phép phần text này mở rộng */
+    line-height: 1.6;
+}
+
+
+/* --- CSS MỚI HOẶC ĐIỀU CHỈNH CHO CÁC NÚT EDIT SCRIPT --- */
+
+/* Container cho các nút Save và Cancel khi edit script */
+.edit-script-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-shrink: 0;
+  margin-left: 10px;
+}
+
+/* Nút Save khi edit script */
+.script-action-save-btn {
+  background-color: #28a745; /* Màu xanh lá cây cho Save */
+  color: white;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-bottom: 8px;
+  transition: background-color 0.3s, transform 0.1s;
+  text-align: center;
+}
+
+.script-action-save-btn:hover {
+  background-color: #218838;
+  transform: translateY(-1px);
+}
+
+/* Nút Cancel khi edit script */
+.script-action-cancel-btn {
+  background-color: #6c757d; /* Màu xám cho Cancel */
+  color: white;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s, transform 0.1s;
+  text-align: center;
+}
+
+.script-action-cancel-btn:hover {
+  background-color: #5a6268;
+  transform: translateY(-1px);
+}
+
+/* Điều chỉnh lại textarea trong question-list li khi ở chế độ edit */
+.question-list li textarea { /* Áp dụng cho textarea khi edit script */
+  flex-grow: 1; /* Đã có ở style chung cho textarea, nhưng đảm bảo ở đây */
+  /* Các style khác của textarea đã được định nghĩa ở style chung */
 }

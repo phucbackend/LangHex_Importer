@@ -719,7 +719,7 @@ const ReadingPage = () => {
                       }}
                       className="edit-topic"
                       disabled={isSubmitting}
-                      title="Edit Topic Name"
+                      title=""
                     >
                       📝
                     </button>

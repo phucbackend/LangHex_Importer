@@ -1,101 +1,133 @@
-import { database } from "../firebaseConfig";
-import { ref, get, set } from "firebase/database";
+// File: SpeakingService.js
+
+import { database } from "../firebaseConfig"; // Đảm bảo đường dẫn này chính xác
+import { ref, get, set, push, child } from "firebase/database";
 import { toast } from "react-toastify";
 
-// Fetch speaking topics for a given level
+const SPEAKING_TYPE = "Q&A";
+
+// Helper function to find a topic by its topicName and return its ID and data
+const findTopicByTitle = async (level, titleToFind) => {
+  const topicsRef = ref(
+    database,
+    `Lessons/Levels/${level}/Speaking/${SPEAKING_TYPE}/Topics`
+  );
+  const snapshot = await get(topicsRef);
+  if (snapshot.exists()) {
+    const topicsData = snapshot.val();
+    for (const topicId in topicsData) {
+      if (
+        topicsData.hasOwnProperty(topicId) &&
+        topicsData[topicId].topicName === titleToFind
+      ) {
+        return { id: topicId, data: topicsData[topicId] };
+      }
+    }
+  }
+  return null; // Topic not found
+};
+
 export const fetchSpeakingTopics = async (level) => {
   try {
-    const topicsRef = ref(database, `Lessons/Levels/${level}/Speaking/Topics`);
+    const topicsRef = ref(
+      database,
+      `Lessons/Levels/${level}/Speaking/${SPEAKING_TYPE}/Topics`
+    );
     const snapshot = await get(topicsRef);
 
     if (snapshot.exists()) {
       const data = snapshot.val();
-      const topicsArray = Object.entries(data).map(([title, questionsObj]) => ({
-        title,
-        questions: Object.values(questionsObj),
+      const topicsArray = Object.entries(data).map(([topicId, topicData]) => ({
+        id: topicId,
+        title: topicData.topicName || "Unnamed Topic",
+        questions: topicData.questions
+          ? Object.entries(topicData.questions).map(([qKey, qText]) => ({
+              key: qKey,
+              text: qText,
+            }))
+          : [], // Nếu không có questions hoặc questions rỗng, trả về mảng rỗng
       }));
       return topicsArray;
     } else {
       return [];
     }
   } catch (error) {
-    console.error("Error fetching topics:", error);
+    console.error("Error fetching Q&A topics:", error);
+    toast.error("Failed to fetch Q&A topics.");
     return [];
   }
 };
 
-// Add a new question to a topic
-export const addQuestionToTopic = async (level, topicTitle, newQuestion) => {
+export const addQuestionToTopic = async (
+  level,
+  topicTitle,
+  newQuestionText
+) => {
   try {
-    const topicRef = ref(
+    const topicInfo = await findTopicByTitle(level, topicTitle);
+    if (!topicInfo) {
+      toast.error(`Topic "${topicTitle}" not found.`);
+      return;
+    }
+    const topicId = topicInfo.id;
+
+    const questionsRef = ref(
       database,
-      `Lessons/Levels/${level}/Speaking/Topics/${topicTitle}`
+      `Lessons/Levels/${level}/Speaking/${SPEAKING_TYPE}/Topics/${topicId}/questions`
     );
-    const snapshot = await get(topicRef);
+    const snapshot = await get(questionsRef);
+    let nextQuestionKey;
 
     if (snapshot.exists()) {
-      const data = snapshot.val();
-      const existingKeys = Object.keys(data);
-      const questionNumbers = existingKeys
+      const questionsData = snapshot.val();
+      const questionKeys = Object.keys(questionsData);
+      const questionNumbers = questionKeys
         .map((key) => {
           const match = key.match(/^question(\d+)$/);
-          return match ? parseInt(match[1]) : null;
+          return match ? parseInt(match[1]) : 0;
         })
-        .filter((num) => num !== null);
-
+        .filter((num) => typeof num === "number");
       const nextNumber =
-        questionNumbers.length > 0 ? Math.max(...questionNumbers) + 1 : 1;
-      const newKey = `question${nextNumber}`;
-      const newQuestionRef = ref(
-        database,
-        `Lessons/Levels/${level}/Speaking/Topics/${topicTitle}/${newKey}`
-      );
-      await set(newQuestionRef, newQuestion);
-      console.log(`Added question under key: ${newKey}`);
+        questionNumbers.length > 0 ? Math.max(0, ...questionNumbers) + 1 : 1;
+      nextQuestionKey = `question${nextNumber}`;
     } else {
-      console.warn(`Topic "${topicTitle}" does not exist.`);
+      nextQuestionKey = "question1"; // Nếu chưa có câu hỏi nào, bắt đầu từ question1
     }
+
+    const newQuestionRef = child(questionsRef, nextQuestionKey);
+    await set(newQuestionRef, newQuestionText);
+    toast.success("Question added successfully!");
   } catch (error) {
     console.error("Error adding question:", error);
+    toast.error("Failed to add question.");
   }
 };
 
-// Delete a question from a topic
 export const deleteQuestionFromTopic = async (
   level,
   topicTitle,
   questionKey
 ) => {
   try {
-    const topicRef = ref(
-      database,
-      `Lessons/Levels/${level}/Speaking/Topics/${topicTitle}`
-    );
-    const snapshot = await get(topicRef);
-
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      delete data[questionKey];
-
-      const updatedQuestions = {};
-      const sortedValues = Object.values(data);
-
-      sortedValues.forEach((question, index) => {
-        const newKey = `question${index + 1}`;
-        updatedQuestions[newKey] = question;
-      });
-
-      await set(topicRef, updatedQuestions);
-      console.log(`Deleted question: ${questionKey} and reordered keys.`);
-    } else {
-      console.warn(`Topic "${topicTitle}" does not exist.`);
+    const topicInfo = await findTopicByTitle(level, topicTitle);
+    if (!topicInfo) {
+      toast.error(`Topic "${topicTitle}" not found.`);
+      return;
     }
+    const topicId = topicInfo.id;
+
+    const questionRef = ref(
+      database,
+      `Lessons/Levels/${level}/Speaking/${SPEAKING_TYPE}/Topics/${topicId}/questions/${questionKey}`
+    );
+    await set(questionRef, null); // Xóa bằng cách set giá trị là null
+    toast.success("Question deleted successfully!");
   } catch (error) {
     console.error("Error deleting question:", error);
+    toast.error("Failed to delete question.");
   }
 };
 
-// Edit an existing question in a topic
 export const editQuestionInTopic = async (
   level,
   topicTitle,
@@ -103,110 +135,123 @@ export const editQuestionInTopic = async (
   updatedText
 ) => {
   try {
+    const topicInfo = await findTopicByTitle(level, topicTitle);
+    if (!topicInfo) {
+      toast.error(`Topic "${topicTitle}" not found.`);
+      return;
+    }
+    const topicId = topicInfo.id;
+
     const questionRef = ref(
       database,
-      `Lessons/Levels/${level}/Speaking/Topics/${topicTitle}/${questionKey}`
+      `Lessons/Levels/${level}/Speaking/${SPEAKING_TYPE}/Topics/${topicId}/questions/${questionKey}`
     );
     await set(questionRef, updatedText);
-    console.log(`Updated question: ${questionKey}`);
   } catch (error) {
     console.error("Error editing question:", error);
+    toast.error("Failed to edit question.");
   }
 };
 
-// Add a new topic
-// export const addTopic = async (level, newTopicTitle) => {
-//   try {
-//     const topicRef = ref(
-//       database,
-//       `Lessons/Levels/${level}/Speaking/Topics/${newTopicTitle}`
-//     );
-//     await set(topicRef, true); // Add a topic with a sample question or empty
-//     toast.success(`Added new topic: ${newTopicTitle}`);
-//   } catch (error) {
-//     toast.error(`Failed to add topic: ${newTopicTitle}`);
-//   }
-// };
-export const addTopic = async (level, newTopicTitle) => {
+export const addTopic = async (level, newTopicUITitle) => {
   try {
-    // Giữ nguyên tên gốc để hiển thị và lưu, nhưng chuẩn hóa để so sánh
-    const formattedInput = newTopicTitle
-      .trim()
-      .replace(/\s+/g, "")
-      .toLowerCase();
+    const trimmedTopicName = newTopicUITitle.trim();
+    if (!trimmedTopicName) {
+      toast.warn("Topic title cannot be empty.");
+      return;
+    }
 
-    const topicsRef = ref(database, `Lessons/Levels/${level}/Speaking/Topics`);
-    const snapshot = await get(topicsRef);
+    const existingTopic = await findTopicByTitle(level, trimmedTopicName);
+    if (existingTopic) {
+      toast.warn(`Topic "${trimmedTopicName}" already exists.`);
+      return;
+    }
 
-    if (snapshot.exists()) {
-      const topicsData = snapshot.val();
+    const topicsContainerRef = ref(
+      database,
+      `Lessons/Levels/${level}/Speaking/${SPEAKING_TYPE}/Topics`
+    );
+    const newTopicFirebaseRef = push(topicsContainerRef);
+    await set(newTopicFirebaseRef, {
+      topicName: trimmedTopicName,
+      questions: {}, // THAY ĐỔI: Khởi tạo questions là một đối tượng rỗng
+    });
 
-      const existingTopicsNormalized = Object.keys(topicsData).map((topic) =>
-        topic.trim().replace(/\s+/g, "").toLowerCase()
-      );
+    toast.success(`Added new topic: ${trimmedTopicName}`);
+  } catch (error) {
+    console.error("Error adding topic:", error);
+    toast.error(`Failed to add topic: ${newTopicUITitle}`);
+  }
+};
 
-      if (existingTopicsNormalized.includes(formattedInput)) {
-        toast.warn(`Topic "${newTopicTitle}" already exists.`);
-        return;
+export const editTopic = async (level, oldTopicUITitle, newTopicUITitle) => {
+  try {
+    const trimmedNewName = newTopicUITitle.trim();
+    if (!trimmedNewName) {
+      toast.warn("New topic title cannot be empty.");
+      return;
+    }
+
+    const topicToEditInfo = await findTopicByTitle(level, oldTopicUITitle);
+    if (!topicToEditInfo) {
+      toast.error(`Topic "${oldTopicUITitle}" not found to edit.`);
+      return;
+    }
+    const topicIdToEdit = topicToEditInfo.id;
+
+    const allTopicsRef = ref(
+      database,
+      `Lessons/Levels/${level}/Speaking/${SPEAKING_TYPE}/Topics`
+    );
+    const allTopicsSnapshot = await get(allTopicsRef);
+    if (allTopicsSnapshot.exists()) {
+      const topicsData = allTopicsSnapshot.val();
+      for (const currentTopicId in topicsData) {
+        if (
+          topicsData.hasOwnProperty(currentTopicId) &&
+          currentTopicId !== topicIdToEdit
+        ) {
+          if (topicsData[currentTopicId].topicName === trimmedNewName) {
+            toast.warn(
+              `Another topic with the title "${trimmedNewName}" already exists.`
+            );
+            return;
+          }
+        }
       }
     }
 
-    // Nếu chưa tồn tại, thì thêm vào với tên gốc (có thể chứa hoa thường tùy ý người nhập)
-    const topicRef = ref(
+    const topicNameFieldRef = ref(
       database,
-      `Lessons/Levels/${level}/Speaking/Topics/${newTopicTitle.trim()}`
+      `Lessons/Levels/${level}/Speaking/${SPEAKING_TYPE}/Topics/${topicIdToEdit}/topicName`
     );
-    await set(topicRef, true);
-    toast.success(`Added new topic: ${newTopicTitle}`);
+    await set(topicNameFieldRef, trimmedNewName);
+    toast.success(
+      `Topic title updated from "${oldTopicUITitle}" to "${trimmedNewName}"`
+    );
   } catch (error) {
-    toast.error(`Failed to add topic: ${newTopicTitle}`);
+    console.error("Error editing topic title:", error);
+    toast.error("Failed to edit topic title.");
   }
 };
 
-// Edit an existing topic (rename or modify it)
-export const editTopic = async (level, oldTopicTitle, newTopicTitle) => {
+export const deleteTopic = async (level, topicUITitleToDelete) => {
   try {
-    const topicRef = ref(
-      database,
-      `Lessons/Levels/${level}/Speaking/Topics/${oldTopicTitle}`
-    );
-    const snapshot = await get(topicRef);
-
-    if (snapshot.exists()) {
-      const topicData = snapshot.val();
-      const newTopicRef = ref(
-        database,
-        `Lessons/Levels/${level}/Speaking/Topics/${newTopicTitle}`
-      );
-      await set(newTopicRef, topicData); // Copy data to new topic
-      await set(topicRef, null); // Remove the old topic
-      console.log(
-        `Renamed topic from "${oldTopicTitle}" to "${newTopicTitle}"`
-      );
-    } else {
-      console.warn(`Topic "${oldTopicTitle}" does not exist.`);
+    const topicInfo = await findTopicByTitle(level, topicUITitleToDelete);
+    if (!topicInfo) {
+      toast.error(`Topic "${topicUITitleToDelete}" not found to delete.`);
+      return;
     }
-  } catch (error) {
-    console.error("Error editing topic:", error);
-  }
-};
+    const topicIdToDelete = topicInfo.id;
 
-// Delete a topic
-export const deleteTopic = async (level, topicTitle) => {
-  try {
-    const topicRef = ref(
+    const topicFirebaseRef = ref(
       database,
-      `Lessons/Levels/${level}/Speaking/Topics/${topicTitle}`
+      `Lessons/Levels/${level}/Speaking/${SPEAKING_TYPE}/Topics/${topicIdToDelete}`
     );
-    const snapshot = await get(topicRef);
-
-    if (snapshot.exists()) {
-      await set(topicRef, null); // Remove the topic
-      console.log(`Deleted topic: ${topicTitle}`);
-    } else {
-      console.warn(`Topic "${topicTitle}" does not exist.`);
-    }
+    await set(topicFirebaseRef, null); // Xóa bằng cách set giá trị là null
+    toast.success(`Deleted topic: ${topicUITitleToDelete}`);
   } catch (error) {
     console.error("Error deleting topic:", error);
+    toast.error("Failed to delete topic.");
   }
 };

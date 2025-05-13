@@ -1,0 +1,64 @@
+/* src/css/speakingPopup.css */
+.speaking-popup-overlay {
+  position: fixed; /* Sit on top of the page content */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6); /* Black background with opacity */
+  z-index: 1000; /* Display on top */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.speaking-popup-content {
+  background-color: #fff;
+  padding: 25px 30px;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  width: 90%;
+  max-width: 400px; /* Max width of the popup */
+}
+
+.speaking-popup-content h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #333;
+  font-size: 1.5em;
+}
+
+.popup-option-button {
+  background-color: #5cb85c; /* Greenish */
+  color: white;
+  border: none;
+  padding: 12px 15px;
+  margin: 8px 0;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1em;
+  width: 100%; /* Full width */
+  transition: background-color 0.3s ease;
+}
+
+.popup-option-button:hover {
+  background-color: #4cae4c;
+}
+
+.popup-close-button {
+  background-color: #f0f0f0; /* Light grey */
+  color: #333;
+  border: 1px solid #ccc;
+  padding: 10px 15px;
+  margin-top: 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9em;
+  width: 100%;
+  transition: background-color 0.3s ease;
+}
+
+.popup-close-button:hover {
+  background-color: #e0e0e0;
+}
