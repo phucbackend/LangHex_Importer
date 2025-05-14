@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import "../css/speaking.css";
+import "../css/speaking.css"; // Assuming this CSS is generic enough
 
 import {
   fetchListeningTopics,
@@ -15,7 +15,7 @@ import {
   editListeningExerciseDisplayTitle,
   deleteListeningExercise,
   updateListeningExerciseDetail,
-  deleteUserListeningAnswersForQuestion,
+  deleteUserListeningAnswersForQuestion, // Corrected service name
 } from "../Model/ListeningService";
 
 const ListeningPage = () => {
@@ -61,9 +61,30 @@ const ListeningPage = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Logic kiểm tra xem có thay đổi chưa lưu không
+  const hasChanges = useMemo(() => {
+    if (!selectedExercise || initialExerciseDetailStateForComparison === null) {
+      return false;
+    }
+    try {
+      const currentComparableState = JSON.stringify({
+        script: currentEditingExerciseData.script,
+        questions: currentEditingExerciseData.questions,
+      });
+      return currentComparableState !== initialExerciseDetailStateForComparison;
+    } catch (error) {
+      console.error("Error comparing exercise detail states:", error);
+      return true; // Assume changes if error occurs to prevent data loss
+    }
+  }, [
+    selectedExercise,
+    currentEditingExerciseData,
+    initialExerciseDetailStateForComparison,
+  ]);
+
   const loadTopics = useCallback(async () => {
     setIsLoadingTopics(true);
-    setSelectedTopic(null);
+    setSelectedTopic(null); // Reset selected topic when reloading all topics
     const fetchedTopics = await fetchListeningTopics(upperLevelId);
     setTopics(fetchedTopics);
     setIsLoadingTopics(false);
@@ -78,7 +99,7 @@ const ListeningPage = () => {
       return;
     }
     setIsLoadingExercises(true);
-    setSelectedExercise(null);
+    setSelectedExercise(null); // Reset selected exercise when loading new list
     setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
     setInitialExerciseDetailStateForComparison(null);
     const fetchedExercises = await fetchListeningExercisesForTopic(
@@ -92,7 +113,7 @@ const ListeningPage = () => {
   const loadExerciseDetail = useCallback(
     async (exerciseIdToLoad) => {
       if (!selectedTopic || !selectedTopic.id || !exerciseIdToLoad) return;
-      setIsSubmitting(true);
+      setIsSubmitting(true); // Use isSubmitting to indicate loading detail
       const exerciseDetail = await fetchListeningExerciseDetail(
         upperLevelId,
         selectedTopic.id,
@@ -102,8 +123,8 @@ const ListeningPage = () => {
       if (exerciseDetail) {
         setSelectedExercise(exerciseDetail);
         const editableData = {
-          script: exerciseDetail.script,
-          questions: exerciseDetail.questions,
+          script: exerciseDetail.script || "", // Ensure script is not undefined
+          questions: exerciseDetail.questions || [], // Ensure questions is an array
         };
         setCurrentEditingExerciseData(editableData);
         setInitialExerciseDetailStateForComparison(
@@ -114,7 +135,7 @@ const ListeningPage = () => {
         setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
         setInitialExerciseDetailStateForComparison(null);
         toast.warn("Listening exercise details could not be loaded.");
-        await loadExercisesForSelectedTopic();
+        await loadExercisesForSelectedTopic(); // Reload list if detail fails
       }
     },
     [
@@ -146,6 +167,15 @@ const ListeningPage = () => {
 
   const handleSelectTopic = (topic) => {
     if (!isSubmitting && topic && topic.id) {
+      if (hasChanges) {
+        if (
+          !window.confirm(
+            "You have unsaved changes in the current exercise. Are you sure you want to switch topics? Your changes will be lost."
+          )
+        ) {
+          return;
+        }
+      }
       if (!selectedTopic || topic.id !== selectedTopic.id) {
         setSelectedTopic(topic);
         setShowAddExerciseInput(false);
@@ -161,12 +191,12 @@ const ListeningPage = () => {
     }
     setIsSubmitting(true);
     const result = await addListeningTopic(upperLevelId, trimmedName);
+    setIsSubmitting(false);
     if (result.success) {
       setNewTopicName("");
       setShowAddTopicInput(false);
       await loadTopics();
     }
-    setIsSubmitting(false);
   };
 
   const handleOpenEditTopicModal = (topic) => {
@@ -186,11 +216,10 @@ const ListeningPage = () => {
       topicToEdit.topicName === trimmedNewName
     ) {
       if (topicToEdit && topicToEdit.topicName === trimmedNewName) {
+        toast.info("Topic name is the same, no changes to save.");
         setShowEditTopicModal(false);
       } else {
-        toast.warn(
-          "New topic name cannot be empty or is the same as the current name."
-        );
+        toast.warn("New topic name cannot be empty.");
       }
       return;
     }
@@ -232,7 +261,7 @@ const ListeningPage = () => {
         setTopicToDelete(null);
         await loadTopics();
         if (selectedTopic && selectedTopic.id === deletedTopicId) {
-          setSelectedTopic(null);
+          setSelectedTopic(null); // This will trigger the useEffect to clear exercises
         }
       }
     }
@@ -245,16 +274,16 @@ const ListeningPage = () => {
 
   const handleSelectExercise = (exercise) => {
     if (!isSubmitting && exercise && exercise.id) {
-      if (!selectedExercise || exercise.id !== selectedExercise.id) {
-        if (hasChanges) {
-          if (
-            !window.confirm(
-              "You have unsaved changes in the current exercise. Are you sure you want to switch? Your changes will be lost."
-            )
-          ) {
-            return;
-          }
+      if (hasChanges) {
+        if (
+          !window.confirm(
+            "You have unsaved changes in the current exercise. Are you sure you want to switch exercises? Your changes will be lost."
+          )
+        ) {
+          return;
         }
+      }
+      if (!selectedExercise || exercise.id !== selectedExercise.id) {
         loadExerciseDetail(exercise.id);
       }
     }
@@ -276,12 +305,14 @@ const ListeningPage = () => {
       selectedTopic.id,
       trimmedTitle
     );
+    setIsSubmitting(false);
     if (result.success) {
       setNewExerciseTitle("");
       setShowAddExerciseInput(false);
       await loadExercisesForSelectedTopic();
+      // Optional: if API returns the new exercise ID, load it.
+      // if (result.data?.id) { loadExerciseDetail(result.data.id); }
     }
-    setIsSubmitting(false);
   };
 
   const handleOpenEditExerciseModal = (exercise) => {
@@ -301,11 +332,10 @@ const ListeningPage = () => {
       (exerciseToEdit.title && exerciseToEdit.title === trimmedNewTitle)
     ) {
       if (exerciseToEdit && exerciseToEdit.title === trimmedNewTitle) {
+        toast.info("Exercise title is the same, no changes to save.");
         setShowEditExerciseModal(false);
       } else {
-        toast.warn(
-          "New exercise title cannot be empty or is the same as the current title."
-        );
+        toast.warn("New exercise title cannot be empty.");
       }
       return;
     }
@@ -358,7 +388,7 @@ const ListeningPage = () => {
         setExerciseToDelete(null);
         await loadExercisesForSelectedTopic();
         if (selectedExercise && selectedExercise.id === deletedExerciseId) {
-          setSelectedExercise(null);
+          setSelectedExercise(null); // This will clear the detail view
           setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
           setInitialExerciseDetailStateForComparison(null);
         }
@@ -466,15 +496,14 @@ const ListeningPage = () => {
       return;
     }
 
-    const questionToDeleteLocally = localQuestions[indexToDelete];
-
-    const isQuestionEffectivelyEmpty = (q) => {
+    const questionToDeleteData = localQuestions[indexToDelete];
+    const isEffectivelyEmpty = (q) => {
       if (!q) return true;
       const questionTextEmpty = !q.questionText?.trim();
       let optionsAllEmpty = true;
       if (q.options && typeof q.options === "object") {
         optionsAllEmpty = ["A", "B", "C", "D"].every(
-          (key) => !q.options[key]?.trim()
+          (key) => !(q.options[key] || "").trim()
         );
       } else if (q.options === undefined || q.options === null) {
         optionsAllEmpty = true;
@@ -485,119 +514,167 @@ const ListeningPage = () => {
       return questionTextEmpty && optionsAllEmpty && correctAnswerEmpty;
     };
 
-    const effectivelyEmpty = isQuestionEffectivelyEmpty(
-      questionToDeleteLocally
-    );
+    const effectivelyEmpty = isEffectivelyEmpty(questionToDeleteData);
+    const exerciseTitle = selectedExercise.title || "this exercise";
+    const questionTextPreview = questionToDeleteData?.questionText
+      ? questionToDeleteData.questionText.substring(0, 30) +
+        (questionToDeleteData.questionText.length > 30 ? "..." : "")
+      : `Question ${indexToDelete + 1}`;
 
-    const performDeletionLogic = async () => {
-      setIsSubmitting(true);
-      const previousCurrentEditingExerciseData = JSON.parse(
-        JSON.stringify(currentEditingExerciseData)
+    let shouldProceedWithDeletion = false;
+
+    if (effectivelyEmpty) {
+      toast.info(
+        `Empty listening question ${indexToDelete + 1} will be removed.`
       );
+      shouldProceedWithDeletion = true;
+    } else {
+      shouldProceedWithDeletion = window.confirm(
+        `Are you sure you want to delete "${questionTextPreview}" from "${exerciseTitle}"? ` +
+          (hasChanges
+            ? "This will remove the question from your unsaved changes."
+            : "This will update the database and attempt to delete related user answers. This action cannot be undone.")
+      );
+    }
 
-      setCurrentEditingExerciseData((prev) => ({
-        ...prev,
-        questions: prev.questions.filter((_, i) => i !== indexToDelete),
-      }));
-
+    if (shouldProceedWithDeletion) {
+      setIsSubmitting(true);
       try {
-        let successfullyProcessedDB = false;
-        let newPersistedState = null;
-        const exerciseIdForDBOperations = selectedExercise.id;
-
-        if (
-          questionToDeleteLocally.id &&
-          !questionToDeleteLocally.id.startsWith("temp_listen_")
-        ) {
-          const latestExerciseDetailFromDB = await fetchListeningExerciseDetail(
-            upperLevelId,
-            selectedTopic.id,
-            exerciseIdForDBOperations
+        if (hasChanges) {
+          // CASE 1: HAS UNSAVED LOCAL CHANGES
+          console.log(
+            "Deleting listening question locally due to unsaved changes."
           );
-
-          if (!latestExerciseDetailFromDB) {
-            throw new Error(
-              "Failed to fetch current exercise data from database. Cannot safely delete question."
+          const newQuestionsLocal = localQuestions.filter(
+            (_, i) => i !== indexToDelete
+          );
+          setCurrentEditingExerciseData((prev) => ({
+            ...prev,
+            questions: newQuestionsLocal,
+          }));
+          if (!effectivelyEmpty) {
+            // Only toast success if it wasn't an auto-deleted empty q
+            toast.success(
+              "Listening question removed from current changes. Save to persist."
             );
           }
-
-          const questionsFromDB = latestExerciseDetailFromDB.questions || [];
-          const dbQuestionIndex = questionsFromDB.findIndex(
-            (q) => q.id === questionToDeleteLocally.id
+        } else {
+          // CASE 2: NO UNSAVED LOCAL CHANGES (Direct DB operation)
+          console.log(
+            "Deleting listening question from database as no unsaved changes detected."
           );
 
-          if (dbQuestionIndex !== -1) {
-            const updatedQuestionsForDB = questionsFromDB.filter(
-              (_, i) => i !== dbQuestionIndex
-            );
-            const dataToSaveToDB = {
-              script: latestExerciseDetailFromDB.script,
-              questions: updatedQuestionsForDB,
-            };
+          // Fetch the latest state from DB before making changes
+          const latestExerciseDetail = await fetchListeningExerciseDetail(
+            upperLevelId,
+            selectedTopic.id,
+            selectedExercise.id
+          );
 
-            const successUpdateExercise = await updateListeningExerciseDetail(
-              upperLevelId,
-              selectedTopic.id,
-              exerciseIdForDBOperations,
-              dataToSaveToDB
+          if (!latestExerciseDetail) {
+            toast.error(
+              "Failed to fetch the latest exercise data. Deletion aborted."
             );
+            setIsSubmitting(false);
+            return;
+          }
 
-            if (successUpdateExercise) {
+          const currentQuestionsFromDB = latestExerciseDetail.questions || [];
+          // Find the question in the DB data by ID if available, otherwise assume index matches if IDs are not stable/used yet
+          // For safety, it's better if questions always have a stable ID once saved.
+          // If questionToDeleteData.id exists and is not temporary, use it to find.
+          let dbQuestionIndex = -1;
+          if (
+            questionToDeleteData.id &&
+            !questionToDeleteData.id.startsWith("temp_listen_")
+          ) {
+            dbQuestionIndex = currentQuestionsFromDB.findIndex(
+              (q) => q.id === questionToDeleteData.id
+            );
+          } else {
+            // Fallback to index if ID is temporary or not present. This is less safe if backend reorders.
+            dbQuestionIndex = indexToDelete;
+          }
+
+          if (
+            dbQuestionIndex < 0 ||
+            dbQuestionIndex >= currentQuestionsFromDB.length
+          ) {
+            toast.error(
+              "Question index out of sync with the database or question not found. Please refresh."
+            );
+            await loadExerciseDetail(selectedExercise.id); // Refresh
+            setIsSubmitting(false);
+            return;
+          }
+
+          // Get the actual ID of the question to be deleted from the DB version
+          const actualQuestionToDeleteFromDB =
+            currentQuestionsFromDB[dbQuestionIndex];
+
+          const newQuestionsDB = currentQuestionsFromDB.filter(
+            (_, i) => i !== dbQuestionIndex
+          );
+          const updatedExerciseDataForApi = {
+            script: latestExerciseDetail.script,
+            questions: newQuestionsDB,
+          };
+
+          const successUpdateExercise = await updateListeningExerciseDetail(
+            upperLevelId,
+            selectedTopic.id,
+            selectedExercise.id,
+            updatedExerciseDataForApi
+          );
+
+          if (successUpdateExercise) {
+            setCurrentEditingExerciseData(updatedExerciseDataForApi);
+            setInitialExerciseDetailStateForComparison(
+              JSON.stringify(updatedExerciseDataForApi)
+            );
+            setSelectedExercise((prev) => ({
+              ...prev,
+              script: updatedExerciseDataForApi.script,
+              questions: newQuestionsDB,
+            }));
+            if (!effectivelyEmpty) {
+              // Only toast success if it wasn't an auto-deleted empty q
               toast.success(
                 "Listening question deleted successfully from the exercise."
               );
-              newPersistedState = dataToSaveToDB;
-              successfullyProcessedDB = true;
+            }
 
-              const userAnswerDeletionResult =
-                await deleteUserListeningAnswersForQuestion(
-                  exerciseIdForDBOperations,
-                  dbQuestionIndex
-                );
-              if (userAnswerDeletionResult.success) {
-                console.log(
-                  `User listening answer deletion: success, ops: ${userAnswerDeletionResult.operations}`
-                );
-              } else {
-                console.error(
-                  "Failed to delete user listening answers:",
-                  userAnswerDeletionResult.message
-                );
-              }
-            } else {
-              throw new Error(
-                "Failed to save changes to the database after deleting question."
+            // Delete user answers for the question using its original index from the DB state
+            const exerciseIdForUserAnswers = selectedExercise.id;
+            // The index must be the one from the `currentQuestionsFromDB` before filtering
+            const questionIndexForUserAnswers = dbQuestionIndex;
+
+            console.log(
+              `Attempting to delete user listening answers for exerciseId: ${exerciseIdForUserAnswers}, questionIndex: ${questionIndexForUserAnswers} (original DB index)`
+            );
+            const userAnswerDeletionResult =
+              await deleteUserListeningAnswersForQuestion(
+                exerciseIdForUserAnswers,
+                questionIndexForUserAnswers // Use the original DB index
               );
+
+            if (userAnswerDeletionResult.success) {
+              console.log(
+                `User listening answer deletion: success, operations: ${userAnswerDeletionResult.operations}`
+              );
+            } else {
+              console.error(
+                "Failed to delete user listening answers:",
+                userAnswerDeletionResult.message
+              );
+              // Toast for this error should be handled in the service or here if specific context is needed
             }
           } else {
-            toast.info(
-              "Question not found in the database (perhaps already deleted). Removed locally."
+            toast.error(
+              "Failed to update exercise after question deletion. Reloading details."
             );
-            newPersistedState = latestExerciseDetailFromDB;
-            successfullyProcessedDB = true;
+            await loadExerciseDetail(selectedExercise.id);
           }
-        } else {
-          if (
-            questionToDeleteLocally.id &&
-            questionToDeleteLocally.id.startsWith("temp_listen_")
-          ) {
-            toast.success("Unsaved listening question removed locally.");
-          } else if (effectivelyEmpty) {
-            // Handles empty non-temp questions that might not have an ID or other edge cases
-            toast.success("Empty listening question removed locally.");
-          }
-          successfullyProcessedDB = true;
-        }
-
-        if (successfullyProcessedDB && newPersistedState) {
-          setInitialExerciseDetailStateForComparison(
-            JSON.stringify(newPersistedState)
-          );
-          setSelectedExercise((prev) => ({
-            ...prev,
-            script: newPersistedState.script,
-            questions: newPersistedState.questions,
-          }));
         }
       } catch (error) {
         console.error(
@@ -605,37 +682,15 @@ const ListeningPage = () => {
           error
         );
         toast.error(
-          `An error occurred: ${error.message}. Reverting local changes.`
+          `An unexpected error occurred: ${
+            error.message || "Please try again."
+          }`
         );
-        setCurrentEditingExerciseData(previousCurrentEditingExerciseData);
-
-        if (
-          selectedExercise &&
-          selectedExercise.id &&
-          questionToDeleteLocally.id &&
-          !questionToDeleteLocally.id.startsWith("temp_listen_")
-        ) {
-          await loadExerciseDetail(selectedExercise.id);
+        if (!hasChanges && selectedExercise && selectedExercise.id) {
+          await loadExerciseDetail(selectedExercise.id); // Attempt to resync if error occurred during DB ops
         }
       } finally {
         setIsSubmitting(false);
-      }
-    };
-
-    if (effectivelyEmpty) {
-      await performDeletionLogic();
-    } else {
-      const exerciseTitle = selectedExercise.title || "this exercise";
-      const questionTextPreview =
-        questionToDeleteLocally?.questionText.substring(0, 30) + "..." ||
-        `Question ${indexToDelete + 1}`;
-
-      if (
-        window.confirm(
-          `Are you sure you want to delete "${questionTextPreview}" from "${exerciseTitle}"? This will update the database if the question exists there and attempt to delete related user listening answers. This action cannot be undone.`
-        )
-      ) {
-        await performDeletionLogic();
       }
     }
   };
@@ -651,8 +706,15 @@ const ListeningPage = () => {
       return;
     }
     if (typeof currentEditingExerciseData.script !== "string") {
-      toast.warn("Script data is invalid.");
-      return;
+      // Basic check for script
+      toast.warn(
+        "Audio Script / URL cannot be effectively empty if there are questions."
+      );
+      // Allow empty script if there are no questions, or adjust as per your needs
+      // if (currentEditingExerciseData.questions && currentEditingExerciseData.questions.length > 0 && !currentEditingExerciseData.script?.trim()) {
+      //    toast.warn("Audio Script / URL cannot be empty if there are questions.");
+      //    return;
+      // }
     }
 
     for (const [index, q] of (
@@ -664,33 +726,37 @@ const ListeningPage = () => {
       }
       if (!q.correctAnswer || !["A", "B", "C", "D"].includes(q.correctAnswer)) {
         toast.warn(
-          `Please select a valid correct answer for Question ${index + 1}.`
+          `Please select a valid correct answer (A, B, C, or D) for Question ${
+            index + 1
+          }.`
         );
         return;
       }
       const options = q.options || {};
       if (["A", "B", "C", "D"].some((key) => !(options[key] || "").trim())) {
-        toast.warn(`All options must be filled for Question ${index + 1}.`);
+        toast.warn(
+          `All options (A, B, C, D) must be filled for Question ${index + 1}.`
+        );
         return;
       }
     }
 
     setIsSubmitting(true);
+    // Prepare data, ensuring questions are an array
     const dataToSave = {
-      script: currentEditingExerciseData.script,
-      // For questions, send them as is. The service layer should handle ID assignment for new questions if necessary.
-      // If questions have temp IDs, the service needs to know how to replace them or if Firebase structure handles it.
-      // For now, sending current IDs (temp or persistent).
-      questions: currentEditingExerciseData.questions,
+      script: currentEditingExerciseData.script || "",
+      questions: currentEditingExerciseData.questions || [],
     };
 
     const success = await updateListeningExerciseDetail(
       upperLevelId,
       selectedTopic.id,
       selectedExercise.id,
-      dataToSave
+      dataToSave // Send the current local editing state
     );
+
     if (success) {
+      // Re-fetch the exercise detail to get the canonical state from the DB (e.g., with new question IDs)
       const updatedExerciseDetail = await fetchListeningExerciseDetail(
         upperLevelId,
         selectedTopic.id,
@@ -699,8 +765,8 @@ const ListeningPage = () => {
       if (updatedExerciseDetail) {
         setSelectedExercise(updatedExerciseDetail);
         const editableData = {
-          script: updatedExerciseDetail.script,
-          questions: updatedExerciseDetail.questions,
+          script: updatedExerciseDetail.script || "",
+          questions: updatedExerciseDetail.questions || [],
         };
         setCurrentEditingExerciseData(editableData);
         setInitialExerciseDetailStateForComparison(
@@ -709,32 +775,43 @@ const ListeningPage = () => {
         toast.success("Listening exercise changes saved successfully!");
       } else {
         toast.error(
-          "Saved, but failed to reload the updated exercise data. Please refresh manually if needed."
+          "Changes saved, but failed to reload updated exercise data. Please refresh manually if needed."
         );
-        setInitialExerciseDetailStateForComparison(JSON.stringify(dataToSave)); // Fallback
+        // As a fallback, update initial state with what was sent, though it might lack new IDs
+        setInitialExerciseDetailStateForComparison(JSON.stringify(dataToSave));
       }
+
+      // *** IMPORTANT NOTE ON DELETING USER ANSWERS during Save Changes ***
+      // The logic for deleting user answers when questions are removed as part of "Save Changes"
+      // (i.e., user deletes questions locally and then clicks Save) is complex.
+      // The current `handleSaveChanges` does NOT explicitly call `deleteUserListeningAnswersForQuestion`.
+      // Ideally, your `updateListeningExerciseDetail` service on the backend should:
+      // 1. Receive the new list of questions.
+      // 2. Compare it to the questions currently stored in the database for that exercise.
+      // 3. Identify any questions that were removed.
+      // 4. For each removed question, trigger the deletion of its associated user answers.
+      //
+      // If the backend doesn't handle this, you would need to:
+      // a. Before calling `updateListeningExerciseDetail`, compare `initialExerciseDetailStateForComparison.questions`
+      //    (the state before local edits) with `currentEditingExerciseData.questions`.
+      // b. Identify the IDs (or original indices if IDs aren't reliable for this comparison yet) of questions present in initial but not in current.
+      // c. After `updateListeningExerciseDetail` succeeds, loop through these identified deleted questions
+      //    and call `deleteUserListeningAnswersForQuestion` for each. This makes the frontend logic more complex.
+      // The current setup relies on `handleDeleteQuestion` for explicit single deletions with user answer cleanup,
+      // or backend logic for batch updates. Consider this for data integrity.
+    } else {
+      // Error toast should be handled by the service, but you can add a generic one here if needed
+      // toast.error("Failed to save listening exercise changes.");
+      // Optionally, reload from DB to revert optimistic updates or show consistent error state
+      // await loadExerciseDetail(selectedExercise.id);
     }
     setIsSubmitting(false);
   };
 
-  const hasChanges = useMemo(() => {
-    if (!selectedExercise || initialExerciseDetailStateForComparison === null) {
-      return false;
-    }
-    const currentComparableState = JSON.stringify({
-      script: currentEditingExerciseData.script,
-      questions: currentEditingExerciseData.questions,
-    });
-    return currentComparableState !== initialExerciseDetailStateForComparison;
-  }, [
-    selectedExercise,
-    currentEditingExerciseData,
-    initialExerciseDetailStateForComparison,
-  ]);
-
   return (
     <div
       className={`speaking-container ${
+        // Using speaking-container class as per your structure
         showConfirmDeleteTopic ||
         showEditTopicModal ||
         showConfirmDeleteExercise ||
@@ -763,9 +840,9 @@ const ListeningPage = () => {
               onChange={(e) => setNewTopicName(e.target.value)}
               placeholder="Enter new topic name..."
               style={{
+                padding: "8px",
                 flexGrow: 1,
                 marginRight: "5px",
-                padding: "8px",
                 border: "1px solid #ccc",
                 borderRadius: "4px",
               }}
@@ -809,7 +886,7 @@ const ListeningPage = () => {
                       }}
                       className="edit-topic"
                       disabled={isSubmitting}
-                      title="Edit Topic Name"
+                      title="Edit Topic"
                     >
                       📝
                     </button>
@@ -848,7 +925,7 @@ const ListeningPage = () => {
               >
                 <h2>{selectedTopic.topicName} - Exercises</h2>
                 <button
-                  className="add-topic"
+                  className="add-topic" // Re-use class if style is similar
                   onClick={() =>
                     !isSubmitting &&
                     setShowAddExerciseInput(!showAddExerciseInput)
@@ -866,6 +943,8 @@ const ListeningPage = () => {
                     backgroundColor: "#f0f0f0",
                     borderRadius: "5px",
                     display: "flex",
+                    gap: "5px",
+                    alignItems: "center",
                   }}
                 >
                   <input
@@ -874,9 +953,8 @@ const ListeningPage = () => {
                     onChange={(e) => setNewExerciseTitle(e.target.value)}
                     placeholder="Enter new exercise title..."
                     style={{
-                      flexGrow: 1,
-                      marginRight: "5px",
                       padding: "8px",
+                      flexGrow: 1,
                       border: "1px solid #ccc",
                       borderRadius: "4px",
                     }}
@@ -969,16 +1047,13 @@ const ListeningPage = () => {
                       className="add-question-btn-save"
                       onClick={handleSaveChanges}
                       disabled={isSubmitting}
-                      style={{
-                        backgroundColor: "#4CAF50",
-                        color: "white",
-                        padding: "8px 16px",
-                      }}
+                      style={{ backgroundColor: "#4CAF50", color: "white" }}
                     >
                       {isSubmitting ? "Saving..." : "Save Changes"}
                     </button>
                   )}
                 </div>
+
                 <div className="form-group" style={{ marginBottom: "20px" }}>
                   <label
                     htmlFor="listeningScript"
@@ -992,10 +1067,10 @@ const ListeningPage = () => {
                   </label>
                   <textarea
                     id="listeningScript"
-                    value={currentEditingExerciseData.script}
+                    value={currentEditingExerciseData.script || ""}
                     onChange={handleScriptChange}
                     placeholder="Enter audio script or URL here..."
-                    rows={6}
+                    rows={6} // Adjusted for potentially shorter URLs or scripts
                     style={{
                       width: "100%",
                       padding: "10px",
@@ -1007,6 +1082,7 @@ const ListeningPage = () => {
                     disabled={isSubmitting}
                   />
                 </div>
+
                 <div className="questions-section">
                   <h3
                     style={{
@@ -1105,7 +1181,7 @@ const ListeningPage = () => {
                               <input
                                 type="radio"
                                 name={`correctAnswer_Listening_${
-                                  selectedExercise.id
+                                  selectedExercise?.id
                                 }_${q.id || index}`}
                                 value={optionKey}
                                 checked={q.correctAnswer === optionKey}
@@ -1175,7 +1251,8 @@ const ListeningPage = () => {
                     textAlign: "center",
                   }}
                 >
-                  Select a listening exercise to view or edit its details.
+                  Select a listening exercise from the list above to view or
+                  edit its details, or add a new one if the list is empty.
                 </p>
               )
             )}
@@ -1191,14 +1268,17 @@ const ListeningPage = () => {
               }}
             >
               Select a listening topic from the sidebar to manage its exercises.
-              If no topics exist, please add one.
+              If no topics exist for level {upperLevelId}, please add one.
             </p>
           )
         )}
       </div>
 
+      {/* Modals */}
       {showEditTopicModal && topicToEdit && (
-        <div className="edit-topic-modal">
+        <div className="edit-topic-modal modal-overlay">
+          {" "}
+          {/* Added modal-overlay */}
           <div className="modal-content">
             <h3>Edit Listening Topic Name</h3>
             <input
@@ -1232,8 +1312,11 @@ const ListeningPage = () => {
           </div>
         </div>
       )}
+
       {showConfirmDeleteTopic && topicToDelete && (
-        <div className="confirm-delete-modal">
+        <div className="confirm-delete-modal modal-overlay">
+          {" "}
+          {/* Added modal-overlay */}
           <div className="modal-content">
             <h3>Delete Topic "{topicToDelete.topicName}"?</h3>
             <p>
@@ -1259,8 +1342,11 @@ const ListeningPage = () => {
           </div>
         </div>
       )}
+
       {showEditExerciseModal && exerciseToEdit && selectedTopic && (
-        <div className="edit-topic-modal">
+        <div className="edit-topic-modal modal-overlay">
+          {" "}
+          {/* Added modal-overlay */}
           <div className="modal-content">
             <h3>Edit Listening Exercise Title</h3>
             <p>
@@ -1301,8 +1387,11 @@ const ListeningPage = () => {
           </div>
         </div>
       )}
+
       {showConfirmDeleteExercise && exerciseToDelete && selectedTopic && (
-        <div className="confirm-delete-modal">
+        <div className="confirm-delete-modal modal-overlay">
+          {" "}
+          {/* Added modal-overlay */}
           <div className="modal-content">
             <h3>Delete Exercise "{exerciseToDelete?.title}"?</h3>
             <p>
