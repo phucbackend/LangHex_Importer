@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import "../css/speaking.css"; // Đảm bảo đường dẫn này chính xác
+import "../css/speaking.css";
 import {
   fetchSpeakingTopics,
   addQuestionToTopic,
@@ -9,7 +9,7 @@ import {
   addTopic,
   deleteTopic,
   editTopic,
-} from "../Model/SpeakingService"; // Đảm bảo đường dẫn này chính xác
+} from "../Model/SpeakingService";
 
 const SpeakingPage = () => {
   const { levelId } = useParams();

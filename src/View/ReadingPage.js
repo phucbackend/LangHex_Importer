@@ -2,9 +2,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import "../css/speaking.css"; // Hoặc Reading.css
+import "../css/speaking.css";
 
-// Import các hàm service của Reading (đã cập nhật)
 import {
   fetchReadingTopics,
   addReadingTopic,
@@ -16,7 +15,7 @@ import {
   editReadingExerciseDisplayTitle,
   deleteReadingExercise,
   updateReadingExerciseDetail,
-  deleteUserAnswersForQuestion, // Đã thêm
+  deleteUserAnswersForQuestion,
 } from "../Model/ReadingService";
 
 const ReadingPage = () => {
@@ -61,6 +60,33 @@ const ReadingPage = () => {
   ] = useState(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Logic kiểm tra xem có thay đổi chưa lưu không
+  // Sử dụng useMemo để tính toán lại chỉ khi các dependencies thay đổi
+  const hasChanges = useMemo(() => {
+    // Nếu chưa có exercise nào được chọn hoặc chưa tải dữ liệu ban đầu, không có thay đổi
+    if (!selectedExercise || initialExerciseDetailStateForComparison === null) {
+      return false;
+    }
+    try {
+      // Tạo một chuỗi JSON từ trạng thái chỉnh sửa hiện tại (chỉ lấy script và questions)
+      // Cần cẩn thận nếu thứ tự thuộc tính trong object không nhất quán khi stringify
+      const currentComparableState = JSON.stringify({
+        script: currentEditingExerciseData.script,
+        questions: currentEditingExerciseData.questions,
+      });
+      // So sánh chuỗi JSON hiện tại với chuỗi JSON ban đầu/đã lưu
+      return currentComparableState !== initialExerciseDetailStateForComparison;
+    } catch (error) {
+      console.error("Error comparing exercise detail states:", error);
+      // Nếu có lỗi khi so sánh, coi như có thay đổi để không làm mất dữ liệu
+      return true;
+    }
+  }, [
+    selectedExercise, // Chỉ so sánh khi exercise được chọn thay đổi
+    currentEditingExerciseData, // Hoặc dữ liệu chỉnh sửa thay đổi
+    initialExerciseDetailStateForComparison, // Hoặc trạng thái so sánh ban đầu thay đổi
+  ]);
 
   const loadTopics = useCallback(async () => {
     setIsLoadingTopics(true);
@@ -115,7 +141,7 @@ const ReadingPage = () => {
         setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
         setInitialExerciseDetailStateForComparison(null);
         toast.warn("Exercise details could not be loaded.");
-        await loadExercisesForSelectedTopic();
+        await loadExercisesForSelectedTopic(); // Tải lại danh sách exercise nếu chi tiết lỗi
       }
     },
     [
@@ -124,16 +150,17 @@ const ReadingPage = () => {
       loadExercisesForSelectedTopic,
       initialEmptyExerciseDataForDetail,
     ]
-  );
+  ); // Effect để tải topics khi component mount
 
   useEffect(() => {
     loadTopics();
-  }, [loadTopics]);
+  }, [loadTopics]); // Effect để tải exercises khi selectedTopic thay đổi
 
   useEffect(() => {
     if (selectedTopic && selectedTopic.id) {
       loadExercisesForSelectedTopic();
     } else {
+      // Reset exercise state khi không có topic nào được chọn
       setTopicExercises([]);
       setSelectedExercise(null);
       setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
@@ -146,10 +173,21 @@ const ReadingPage = () => {
   ]);
 
   const handleSelectTopic = (topic) => {
+    // Chỉ cho phép chọn topic khác khi không đang submit và có topic hợp lệ
     if (!isSubmitting && topic && topic.id) {
+      // Kiểm tra có thay đổi chưa lưu trong exercise hiện tại không trước khi chuyển topic
+      if (hasChanges) {
+        if (
+          !window.confirm(
+            "You have unsaved changes in the current exercise. Are you sure you want to switch topics? Your changes will be lost."
+          )
+        ) {
+          return; // Hủy bỏ nếu người dùng không xác nhận
+        }
+      } // Nếu không có thay đổi hoặc người dùng đã xác nhận, tiến hành chọn topic mới
       if (!selectedTopic || topic.id !== selectedTopic.id) {
         setSelectedTopic(topic);
-        setShowAddExerciseInput(false);
+        setShowAddExerciseInput(false); // Ẩn input add exercise khi chọn topic mới
       }
     }
   };
@@ -162,12 +200,12 @@ const ReadingPage = () => {
     }
     setIsSubmitting(true);
     const result = await addReadingTopic(upperLevelId, trimmedName);
+    setIsSubmitting(false); // Kết thúc submit sau khi gọi API
     if (result.success) {
       setNewTopicName("");
       setShowAddTopicInput(false);
-      await loadTopics();
+      await loadTopics(); // Tải lại danh sách topics sau khi thêm thành công
     }
-    setIsSubmitting(false);
   };
 
   const handleOpenEditTopicModal = (topic) => {
@@ -187,11 +225,10 @@ const ReadingPage = () => {
       topicToEdit.topicName === trimmedNewName
     ) {
       if (topicToEdit && topicToEdit.topicName === trimmedNewName) {
+        toast.info("Topic name is the same, no changes to save.");
         setShowEditTopicModal(false);
       } else {
-        toast.warn(
-          "New topic name cannot be empty or is the same as the current name."
-        );
+        toast.warn("New topic name cannot be empty.");
       }
       return;
     }
@@ -201,21 +238,21 @@ const ReadingPage = () => {
       topicToEdit.id,
       trimmedNewName
     );
-    setIsSubmitting(false);
+    setIsSubmitting(false); // Kết thúc submit sau khi gọi API
     if (success) {
       setShowEditTopicModal(false);
-      await loadTopics();
+      await loadTopics(); // Tải lại danh sách topics sau khi sửa thành công // Cập nhật selectedTopic nếu đang chọn topic vừa sửa
       if (selectedTopic && selectedTopic.id === topicToEdit.id) {
         setSelectedTopic((prev) => ({ ...prev, topicName: trimmedNewName }));
       }
-      setTopicToEdit(null);
+      setTopicToEdit(null); // Reset state topic đang sửa
     }
   };
 
   const handleDeleteTopic = (topic) => {
     if (topic && topic.id) {
       setTopicToDelete(topic);
-      setShowConfirmDeleteTopic(true);
+      setShowConfirmDeleteTopic(true); // Mở modal xác nhận xóa topic
     }
   };
 
@@ -223,14 +260,18 @@ const ReadingPage = () => {
     if (topicToDelete && topicToDelete.id) {
       setIsSubmitting(true);
       const success = await deleteReadingTopic(upperLevelId, topicToDelete.id);
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Kết thúc submit sau khi gọi API
       if (success) {
-        setShowConfirmDeleteTopic(false);
+        setShowConfirmDeleteTopic(false); // Đóng modal
         const deletedTopicId = topicToDelete.id;
-        setTopicToDelete(null);
-        await loadTopics();
+        setTopicToDelete(null); // Reset state topic cần xóa
+        await loadTopics(); // Tải lại danh sách topics // Nếu topic đang chọn bị xóa, reset selectedTopic
         if (selectedTopic && selectedTopic.id === deletedTopicId) {
-          setSelectedTopic(null);
+          setSelectedTopic(null); // Đảm bảo exercise list và detail cũng reset khi topic bị xóa
+          setTopicExercises([]);
+          setSelectedExercise(null);
+          setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
+          setInitialExerciseDetailStateForComparison(null);
         }
       }
     }
@@ -238,21 +279,23 @@ const ReadingPage = () => {
 
   const cancelDeleteTopic = () => {
     setTopicToDelete(null);
-    setShowConfirmDeleteTopic(false);
+    setShowConfirmDeleteTopic(false); // Đóng modal
   };
 
   const handleSelectExercise = (exercise) => {
+    // Chỉ cho phép chọn exercise khác khi không đang submit và có exercise hợp lệ
     if (!isSubmitting && exercise && exercise.id) {
-      if (!selectedExercise || exercise.id !== selectedExercise.id) {
-        if (hasChanges) {
-          if (
-            !window.confirm(
-              "You have unsaved changes in the current exercise. Are you sure you want to switch? Your changes will be lost."
-            )
-          ) {
-            return;
-          }
+      // Kiểm tra có thay đổi chưa lưu trong exercise hiện tại không trước khi chọn exercise khác
+      if (hasChanges) {
+        if (
+          !window.confirm(
+            "You have unsaved changes in the current exercise. Are you sure you want to switch exercises? Your changes will be lost."
+          )
+        ) {
+          return; // Hủy bỏ nếu người dùng không xác nhận
         }
+      } // Nếu không có thay đổi hoặc người dùng đã xác nhận, tiến hành tải exercise detail mới
+      if (!selectedExercise || exercise.id !== selectedExercise.id) {
         loadExerciseDetail(exercise.id);
       }
     }
@@ -274,19 +317,19 @@ const ReadingPage = () => {
       selectedTopic.id,
       trimmedTitle
     );
+    setIsSubmitting(false); // Kết thúc submit sau khi gọi API
     if (result.success) {
       setNewExerciseTitle("");
       setShowAddExerciseInput(false);
-      await loadExercisesForSelectedTopic();
+      await loadExercisesForSelectedTopic(); // Tải lại danh sách exercises sau khi thêm thành công // Optional: Tự động chọn exercise vừa tạo? Cần ID từ result.data nếu API trả về // if(result.data?.id) { loadExerciseDetail(result.data.id); }
     }
-    setIsSubmitting(false);
   };
 
   const handleOpenEditExerciseModal = (exercise) => {
     if (exercise && exercise.id) {
       setExerciseToEdit(exercise);
       setEditingExerciseTitle(exercise.title);
-      setShowEditExerciseModal(true);
+      setShowEditExerciseModal(true); // Mở modal sửa title exercise
     }
   };
 
@@ -299,11 +342,10 @@ const ReadingPage = () => {
       (exerciseToEdit.title && exerciseToEdit.title === trimmedNewTitle)
     ) {
       if (exerciseToEdit && exerciseToEdit.title === trimmedNewTitle) {
+        toast.info("Exercise title is the same, no changes to save.");
         setShowEditExerciseModal(false);
       } else {
-        toast.warn(
-          "New exercise title cannot be empty or is the same as the current title."
-        );
+        toast.warn("New exercise title cannot be empty.");
       }
       return;
     }
@@ -318,21 +360,21 @@ const ReadingPage = () => {
       exerciseToEdit.id,
       trimmedNewTitle
     );
-    setIsSubmitting(false);
+    setIsSubmitting(false); // Kết thúc submit sau khi gọi API
     if (success) {
-      setShowEditExerciseModal(false);
-      await loadExercisesForSelectedTopic();
+      setShowEditExerciseModal(false); // Đóng modal
+      await loadExercisesForSelectedTopic(); // Tải lại danh sách exercises // Cập nhật selectedExercise nếu đang chọn exercise vừa sửa
       if (selectedExercise && selectedExercise.id === exerciseToEdit.id) {
         setSelectedExercise((prev) => ({ ...prev, title: trimmedNewTitle }));
       }
-      setExerciseToEdit(null);
+      setExerciseToEdit(null); // Reset state exercise đang sửa
     }
   };
 
   const handleDeleteExercise = (exercise) => {
     if (exercise && exercise.id) {
       setExerciseToDelete(exercise);
-      setShowConfirmDeleteExercise(true);
+      setShowConfirmDeleteExercise(true); // Mở modal xác nhận xóa exercise
     }
   };
 
@@ -349,12 +391,12 @@ const ReadingPage = () => {
         selectedTopic.id,
         exerciseToDelete.id
       );
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Kết thúc submit sau khi gọi API
       if (success) {
-        setShowConfirmDeleteExercise(false);
+        setShowConfirmDeleteExercise(false); // Đóng modal
         const deletedExerciseId = exerciseToDelete.id;
-        setExerciseToDelete(null);
-        await loadExercisesForSelectedTopic();
+        setExerciseToDelete(null); // Reset state exercise cần xóa
+        await loadExercisesForSelectedTopic(); // Tải lại danh sách exercises // Nếu exercise đang chọn bị xóa, reset selectedExercise và detail state
         if (selectedExercise && selectedExercise.id === deletedExerciseId) {
           setSelectedExercise(null);
           setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
@@ -366,8 +408,8 @@ const ReadingPage = () => {
 
   const cancelDeleteExercise = () => {
     setExerciseToDelete(null);
-    setShowConfirmDeleteExercise(false);
-  };
+    setShowConfirmDeleteExercise(false); // Đóng modal
+  }; // --- Các hàm xử lý thay đổi script, questions, options trong trạng thái cục bộ ---
 
   const handleScriptChange = (e) => {
     setCurrentEditingExerciseData((prev) => ({
@@ -378,7 +420,7 @@ const ReadingPage = () => {
 
   const handleQuestionChange = (index, field, value) => {
     setCurrentEditingExerciseData((prev) => {
-      const updatedQuestions = [...(prev.questions || [])];
+      const updatedQuestions = [...(prev.questions || [])]; // Chỉ cập nhật nếu index hợp lệ
       if (updatedQuestions[index]) {
         updatedQuestions[index] = {
           ...updatedQuestions[index],
@@ -386,13 +428,13 @@ const ReadingPage = () => {
         };
         return { ...prev, questions: updatedQuestions };
       }
-      return prev;
+      return prev; // Trả về state cũ nếu index không hợp lệ
     });
   };
 
   const handleOptionChange = (qIndex, optionKey, value) => {
     setCurrentEditingExerciseData((prev) => {
-      const updatedQuestions = [...(prev.questions || [])];
+      const updatedQuestions = [...(prev.questions || [])]; // Chỉ cập nhật nếu index câu hỏi hợp lệ
       if (updatedQuestions[qIndex]) {
         const currentOptions = updatedQuestions[qIndex].options || {
           A: "",
@@ -406,13 +448,13 @@ const ReadingPage = () => {
         };
         return { ...prev, questions: updatedQuestions };
       }
-      return prev;
+      return prev; // Trả về state cũ nếu index câu hỏi không hợp lệ
     });
   };
 
   const handleCorrectAnswerChange = (qIndex, value) => {
     setCurrentEditingExerciseData((prev) => {
-      const updatedQuestions = [...(prev.questions || [])];
+      const updatedQuestions = [...(prev.questions || [])]; // Chỉ cập nhật nếu index câu hỏi hợp lệ
       if (updatedQuestions[qIndex]) {
         updatedQuestions[qIndex] = {
           ...updatedQuestions[qIndex],
@@ -420,9 +462,9 @@ const ReadingPage = () => {
         };
         return { ...prev, questions: updatedQuestions };
       }
-      return prev;
+      return prev; // Trả về state cũ nếu index câu hỏi không hợp lệ
     });
-  };
+  }; // Hàm thêm một câu hỏi mới vào cuối mảng questions trong trạng thái local
 
   const handleAddQuestion = () => {
     setCurrentEditingExerciseData((prev) => ({
@@ -430,6 +472,7 @@ const ReadingPage = () => {
       questions: [
         ...(Array.isArray(prev.questions) ? prev.questions : []),
         {
+          // Sử dụng ID tạm cho câu hỏi mới thêm ở local
           id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           questionText: "",
           options: { A: "", B: "", C: "", D: "" },
@@ -437,9 +480,10 @@ const ReadingPage = () => {
         },
       ],
     }));
-  };
+  }; // --- Hàm Xóa Câu hỏi (Logic đã cập nhật) ---
 
   const handleDeleteQuestion = async (indexToDelete) => {
+    // 1. Kiểm tra điều kiện cần thiết
     if (
       !selectedTopic ||
       !selectedTopic.id ||
@@ -453,6 +497,7 @@ const ReadingPage = () => {
     }
 
     const localQuestions = currentEditingExerciseData.questions || [];
+    // 2. Kiểm tra index dựa trên trạng thái cục bộ (UI đang hiển thị)
     if (indexToDelete < 0 || indexToDelete >= localQuestions.length) {
       console.warn(
         "Invalid index for deleting question based on local data:",
@@ -462,113 +507,188 @@ const ReadingPage = () => {
       return;
     }
 
-    const exerciseIdForUserAnswers = selectedExercise.id;
-    const questionIdentifierForUserAnswers = indexToDelete;
+    const questionToDeleteData = localQuestions[indexToDelete];
+    const isTextEmpty = !questionToDeleteData?.questionText?.trim();
 
     const exerciseTitle = selectedExercise.title || "this exercise";
-    const questionTextPreview =
-      localQuestions[indexToDelete]?.questionText.substring(0, 30) + "..." ||
-      `Question ${indexToDelete + 1}`;
+    const questionTextPreview = questionToDeleteData?.questionText
+      ? questionToDeleteData.questionText.substring(0, 30) +
+        (questionToDeleteData.questionText.length > 30 ? "..." : "")
+      : `Question ${indexToDelete + 1}`;
 
-    if (
-      window.confirm(
-        `Are you sure you want to delete "${questionTextPreview}" from "${exerciseTitle}"? This will update the database and attempt to delete related user answers. This action cannot be undone.`
-      )
-    ) {
-      setIsSubmitting(true);
+    let shouldDelete = false;
+
+    if (isTextEmpty) {
+      // Nếu text rỗng, bỏ qua confirm và tiến hành xóa ngay lập tức (cả local và DB nếu cần)
+      console.log("Deleting empty question without confirmation.");
+      toast.info(`Empty question ${indexToDelete + 1} deleted.`);
+      shouldDelete = true;
+    } else {
+      // Nếu text không rỗng, hỏi xác nhận như bình thường
+      shouldDelete = window.confirm(
+        `Are you sure you want to delete "${questionTextPreview}" from "${exerciseTitle}"? ` +
+          (hasChanges
+            ? "This will remove the question from your unsaved changes." // Thông báo khi có unsaved changes
+            : "This will update the database and attempt to delete related user answers. This action cannot be undone.") // Thông báo khi làm việc với DB
+      );
+    }
+
+    if (shouldDelete) {
+      setIsSubmitting(true); // Bắt đầu trạng thái loading
+
       try {
-        const latestExerciseDetail = await fetchReadingExerciseDetail(
-          upperLevelId,
-          selectedTopic.id,
-          selectedExercise.id
-        );
-
-        if (!latestExerciseDetail) {
-          toast.error(
-            "Failed to fetch the latest exercise data. Please try again."
+        // 4. Kiểm tra lại có thay đổi local chưa lưu không
+        if (hasChanges) {
+          // ======== TRƯỜNG HỢP 1: CÓ THAY ĐỔI LOCAL CHƯA LƯU ========
+          console.log("Deleting question locally due to unsaved changes.");
+          // Index đã được kiểm tra ở bước 2, nên không cần kiểm tra lại localQuestions.length ở đây
+          // Tạo mảng câu hỏi mới bằng cách lọc BỎ câu hỏi ở indexToDelete TỪ DỮ LIỆU LOCAL
+          const newQuestionsLocal = localQuestions.filter(
+            (_, i) => i !== indexToDelete
           );
-          setIsSubmitting(false);
-          return;
-        }
 
-        const currentQuestionsFromDB = latestExerciseDetail.questions || [];
-        if (
-          indexToDelete < 0 ||
-          indexToDelete >= currentQuestionsFromDB.length
-        ) {
-          toast.error(
-            "Question index is out of sync with the database. Please refresh and try again."
-          );
-          setIsSubmitting(false);
-          await loadExerciseDetail(selectedExercise.id);
-          return;
-        }
-
-        const newQuestions = currentQuestionsFromDB.filter(
-          (_, i) => i !== indexToDelete
-        );
-        const updatedExerciseDataForApi = {
-          script: latestExerciseDetail.script,
-          questions: newQuestions,
-        };
-
-        const successUpdateExercise = await updateReadingExerciseDetail(
-          upperLevelId,
-          selectedTopic.id,
-          selectedExercise.id,
-          updatedExerciseDataForApi
-        );
-
-        if (successUpdateExercise) {
-          setCurrentEditingExerciseData(updatedExerciseDataForApi);
-          setInitialExerciseDetailStateForComparison(
-            JSON.stringify(updatedExerciseDataForApi)
-          );
-          setSelectedExercise((prev) => ({
-            ...prev,
-            script: updatedExerciseDataForApi.script,
-            questions: newQuestions,
+          // Cập nhật trạng thái cục bộ với mảng câu hỏi mới
+          // Giữ nguyên các phần khác của currentEditingExerciseData (như script)
+          setCurrentEditingExerciseData((prev) => ({
+            ...prev, // Giữ lại script và bất kỳ data nào khác trong prev
+            questions: newQuestionsLocal, // Cập nhật questions
           }));
-          toast.success("Question deleted successfully from the exercise.");
 
-          console.log(
-            `Proceeding to delete user answers for exerciseId: ${exerciseIdForUserAnswers}, questionIndex: ${questionIdentifierForUserAnswers}`
-          );
-          const userAnswerDeletionResult = await deleteUserAnswersForQuestion(
-            exerciseIdForUserAnswers,
-            questionIdentifierForUserAnswers
-          );
+          // Không cần cập nhật initial state for comparison vì state vẫn chưa được lưu chính thức.
+          // toast.success("Question removed locally. Remember to save your changes."); // Thông báo này đã được chuyển lên trên khi text rỗng
 
-          // Bỏ TOAST.INFO ở đây
-          if (userAnswerDeletionResult.success) {
-            console.log(
-              `User answer deletion status: success, operations: ${userAnswerDeletionResult.operations}`
-            );
-          } else {
-            console.error(
-              "Failed to delete user answers:",
-              userAnswerDeletionResult.message
-            );
-            // Toast lỗi (nếu có) đã được xử lý trong service
-          }
+          // KHÔNG gọi bất kỳ API nào liên quan đến database (fetch, update, delete user answers)
         } else {
-          await loadExerciseDetail(selectedExercise.id);
-        }
+          // ======== TRƯỜNG HỢP 2: KHÔNG CÓ THAY ĐỔI LOCAL CHƯA LƯU (Thao tác trực tiếp với DB) ========
+          console.log(
+            "Deleting question from database as no unsaved changes detected."
+          );
+          // BƯỚC QUAN TRỌNG: Lấy dữ liệu exercise mới nhất từ database
+          const latestExerciseDetail = await fetchReadingExerciseDetail(
+            upperLevelId,
+            selectedTopic.id,
+            selectedExercise.id
+          );
+
+          if (!latestExerciseDetail) {
+            toast.error(
+              "Failed to fetch the latest exercise data before deletion. Please try again."
+            );
+            setIsSubmitting(false);
+            return;
+          }
+
+          const currentQuestionsFromDB = latestExerciseDetail.questions || [];
+          // BƯỚC QUAN TRỌNG: Kiểm tra lại index trên dữ liệu mới nhất từ database
+          // Điều này cực kỳ quan trọng để không xóa sai câu hỏi nếu database đã thay đổi bởi người khác
+          if (
+            indexToDelete < 0 ||
+            indexToDelete >= currentQuestionsFromDB.length
+          ) {
+            toast.error(
+              "Question index is out of sync with the database. Please refresh the exercise and try again."
+            );
+            setIsSubmitting(false);
+            await loadExerciseDetail(selectedExercise.id); // Tải lại để đồng bộ UI với DB khi phát hiện lỗi sync
+            return;
+          }
+
+          // Tạo mảng câu hỏi mới bằng cách lọc BỎ câu hỏi ở indexToDelete
+          // TỪ DỮ LIỆU DB MỚI NHẤT
+          const newQuestionsDB = currentQuestionsFromDB.filter(
+            (_, i) => i !== indexToDelete
+          );
+
+          // Chuẩn bị dữ liệu cập nhật để gửi lên API
+          const updatedExerciseDataForApi = {
+            script: latestExerciseDetail.script, // Giữ nguyên script từ DB
+            questions: newQuestionsDB, // Sử dụng mảng câu hỏi đã lọc từ DB data
+          };
+
+          // Cập nhật exercise trên database
+          const successUpdateExercise = await updateReadingExerciseDetail(
+            upperLevelId,
+            selectedTopic.id,
+            selectedExercise.id,
+            updatedExerciseDataForApi
+          );
+
+          if (successUpdateExercise) {
+            // Cập nhật trạng thái cục bộ CHỈ KHI lưu database thành công
+            setCurrentEditingExerciseData(updatedExerciseDataForApi);
+            // Cập nhật initial state comparison vì trạng thái local giờ đã đồng bộ với DB
+            setInitialExerciseDetailStateForComparison(
+              JSON.stringify(updatedExerciseDataForApi)
+            );
+            // Cập nhật selectedExercise nếu cần (ví dụ nếu state này ảnh hưởng đến UI khác)
+            setSelectedExercise((prev) => ({
+              ...prev,
+              script: updatedExerciseDataForApi.script,
+              questions: newQuestionsDB,
+            }));
+
+            // toast.success("Question deleted successfully from the exercise."); // Thông báo này đã được chuyển lên trên khi text rỗng hoặc hiển thị sau confirm
+
+            // BƯỚC TIẾP THEO: Xóa user answers liên quan TỪ DATABASE
+            // Truyền exercise ID và index BAN ĐẦU của câu hỏi bị xóa (trước khi nó bị xóa khỏi DB)
+            const exerciseIdForUserAnswers = selectedExercise.id; // Lấy ID từ selectedExercise
+            const questionIdentifierForUserAnswers = indexToDelete; // Sử dụng index ban đầu
+
+            console.log(
+              `Attempting to delete user answers for exerciseId: ${exerciseIdForUserAnswers}, questionIndex: ${questionIdentifierForUserAnswers}`
+            );
+            const userAnswerDeletionResult = await deleteUserAnswersForQuestion(
+              exerciseIdForUserAnswers,
+              questionIdentifierForUserAnswers
+            );
+
+            if (userAnswerDeletionResult.success) {
+              console.log(
+                `User answer deletion status: success, operations: ${userAnswerDeletionResult.operations}`
+              );
+            } else {
+              console.error(
+                "Failed to delete user answers:",
+                userAnswerDeletionResult.message
+              );
+              // Toast lỗi (nếu có) đã được xử lý trong service deleteUserAnswersForQuestion
+            }
+          } else {
+            // Nếu cập nhật exercise thất bại trên DB, thông báo lỗi và TẢI LẠI dữ liệu exercise
+            toast.error(
+              "Failed to update exercise after question deletion attempt. Reloading details."
+            );
+            await loadExerciseDetail(selectedExercise.id); // Tải lại để đồng bộ trạng thái UI với DB
+          }
+        } // Kết thúc else (trường hợp không có unsaved changes)
       } catch (error) {
         console.error("Error during question deletion process:", error);
         toast.error(
-          "An unexpected error occurred while deleting the question."
+          "An unexpected error occurred during the deletion process."
         );
-        if (selectedExercise && selectedExercise.id) {
+        // Chỉ tải lại exercise detail từ DB khi lỗi xảy ra ở nhánh thao tác DB
+        // hoặc nếu ban đầu không có unsaved changes (vì lỗi fetch DB ngay đầu)
+        // Nếu lỗi xảy ra ở nhánh local (rất ít khả năng), tải lại từ DB sẽ làm mất các thay đổi local khác.
+        if (!hasChanges && selectedExercise && selectedExercise.id) {
+          console.log(
+            "Attempting to reload exercise detail from DB due to error."
+          );
           await loadExerciseDetail(selectedExercise.id);
+        } else if (hasChanges) {
+          // Xử lý lỗi riêng cho nhánh local nếu cần, ví dụ:
+          // thông báo lỗi nhưng không mất hết state local.
+          console.error("Error occurred in local state handling branch.");
+          // Ở đây, ta có thể không làm gì thêm ngoài toast và console.error
+          // để không làm mất state local còn lại.
         }
       } finally {
-        setIsSubmitting(false);
+        setIsSubmitting(false); // Luôn kết thúc trạng thái loading
       }
-    }
-  };
+    } // Kết thúc if (shouldDelete)
+  }; // Hàm xử lý lưu toàn bộ thay đổi (chỉ gọi khi hasChanges là true và user bấm Save)
 
   const handleSaveChanges = async () => {
+    // Kiểm tra các điều kiện cần thiết trước khi lưu
     if (
       !selectedTopic ||
       !selectedTopic.id ||
@@ -582,6 +702,7 @@ const ReadingPage = () => {
       toast.warn("Script cannot be empty.");
       return;
     }
+    // Validation cho từng câu hỏi
     for (const [index, q] of (
       currentEditingExerciseData.questions || []
     ).entries()) {
@@ -607,40 +728,50 @@ const ReadingPage = () => {
     }
 
     setIsSubmitting(true);
+    // Gửi toàn bộ dữ liệu currentEditingExerciseData hiện tại lên API update
     const success = await updateReadingExerciseDetail(
       upperLevelId,
       selectedTopic.id,
       selectedExercise.id,
-      currentEditingExerciseData
+      currentEditingExerciseData // Gửi dữ liệu đang chỉnh sửa
     );
     if (success) {
+      // Nếu lưu thành công, cập nhật lại initial state comparison
       setInitialExerciseDetailStateForComparison(
         JSON.stringify(currentEditingExerciseData)
       );
+      // Cập nhật selectedExercise nếu cần
       setSelectedExercise((prev) => ({
         ...prev,
         script: currentEditingExerciseData.script,
         questions: currentEditingExerciseData.questions,
       }));
       toast.success("Changes saved successfully!");
-    }
-    setIsSubmitting(false);
-  };
 
-  const hasChanges = useMemo(() => {
-    if (!selectedExercise || initialExerciseDetailStateForComparison === null) {
-      return false;
+      // *** LƯU Ý QUAN TRỌNG VỀ XÓA USER ANSWERS ***
+      // Khi lưu toàn bộ (handleSaveChanges), bạn có thể có cả thêm, sửa, xóa câu hỏi.
+      // Việc xử lý xóa user answers theo index TRƯỚC KHI XÓA trong DB (như trong handleDeleteQuestion)
+      // sẽ phức tạp hơn ở đây vì nhiều câu hỏi có thể bị xóa cùng lúc.
+      // Cách tiếp cận an toàn hơn là API updateReadingExerciseDetail ở backend
+      // nên xử lý việc dọn dẹp user answers cho các câu hỏi bị xóa DỰA VÀO SO SÁNH
+      // TRẠNG THÁI MỚI VÀ CŨ của bài tập.
+      // Hoặc bạn cần truyền danh sách các câu hỏi bị xóa (dựa vào so sánh initial state vs current state)
+      // lên API để backend biết câu nào cần xóa user answers.
+      // Logic hiện tại trong handleSaveChanges KHÔNG gọi deleteUserAnswersForQuestion.
+      // Bạn cần xem xét lại API updateReadingExerciseDetail hoặc thêm logic xác định
+      // các câu hỏi bị xóa để gọi API deleteUserAnswersForQuestion cho từng câu đó sau khi update exercise thành công.
+      // Hiện tại, chỉ deleteUserAnswersForQuestion được gọi khi xóa TỪNG câu VÀ KHÔNG CÓ UNSAVED CHANGES.
+      // Điều này có thể dẫn đến user answers "mồ côi" nếu bạn xóa nhiều câu khi có unsaved changes và sau đó lưu.
+      // Hãy cân nhắc điều chỉnh backend hoặc hàm handleSaveChanges cho phù hợp.
+    } else {
+      // Nếu lưu thất bại, có thể muốn tải lại dữ liệu từ DB để đồng bộ
+      // hoặc chỉ thông báo lỗi và để người dùng tự quyết định
+      // await loadExerciseDetail(selectedExercise.id); // uncomment nếu muốn tải lại state từ DB khi lưu thất bại
+      //toast.error("Failed to save changes."); // Toast lỗi đã có trong updateReadingExerciseDetail service?
     }
-    const currentComparableState = JSON.stringify({
-      script: currentEditingExerciseData.script,
-      questions: currentEditingExerciseData.questions,
-    });
-    return currentComparableState !== initialExerciseDetailStateForComparison;
-  }, [
-    selectedExercise,
-    currentEditingExerciseData,
-    initialExerciseDetailStateForComparison,
-  ]);
+
+    setIsSubmitting(false); // Kết thúc submit
+  };
 
   return (
     <div
@@ -719,7 +850,7 @@ const ReadingPage = () => {
                       }}
                       className="edit-topic"
                       disabled={isSubmitting}
-                      title=""
+                      title="Edit Topic"
                     >
                       📝
                     </button>
@@ -776,6 +907,8 @@ const ReadingPage = () => {
                     backgroundColor: "#f0f0f0",
                     borderRadius: "5px",
                     display: "flex",
+                    gap: "5px", // Sử dụng gap thay vì marginRight
+                    alignItems: "center", // Canh giữa theo chiều dọc
                   }}
                 >
                   <input
@@ -786,7 +919,6 @@ const ReadingPage = () => {
                     style={{
                       padding: "8px",
                       flexGrow: 1,
-                      marginRight: "5px",
                       border: "1px solid #ccc",
                       borderRadius: "4px",
                     }}
@@ -874,17 +1006,19 @@ const ReadingPage = () => {
                   }}
                 >
                   <h2>Edit: {selectedExercise.title}</h2>
+                  {/* Nút Save chỉ hiện khi có thay đổi chưa lưu */}
                   {hasChanges && (
                     <button
                       className="add-question-btn-save"
                       onClick={handleSaveChanges}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting} // Disable khi đang submit bất kỳ thao tác nào
                       style={{ backgroundColor: "#4CAF50", color: "white" }}
                     >
                       {isSubmitting ? "Saving..." : "Save Changes"}
                     </button>
                   )}
                 </div>
+
                 <div className="form-group" style={{ marginBottom: "20px" }}>
                   <label
                     htmlFor="readingScript"
@@ -898,7 +1032,7 @@ const ReadingPage = () => {
                   </label>
                   <textarea
                     id="readingScript"
-                    value={currentEditingExerciseData.script}
+                    value={currentEditingExerciseData.script || ""}
                     onChange={handleScriptChange}
                     placeholder="Enter the script or reading passage here..."
                     rows={10}
@@ -913,6 +1047,7 @@ const ReadingPage = () => {
                     disabled={isSubmitting}
                   />
                 </div>
+
                 <div className="questions-section">
                   <h3
                     style={{
@@ -927,7 +1062,7 @@ const ReadingPage = () => {
                     Array.isArray(currentEditingExerciseData.questions) &&
                     currentEditingExerciseData.questions.map((q, index) => (
                       <div
-                        key={q.id || `question-${index}`}
+                        key={q.id || `question-${index}`} // Sử dụng ID nếu có, fallback về index
                         className="question-item"
                         style={{
                           border: "1px solid #ddd",
@@ -947,7 +1082,7 @@ const ReadingPage = () => {
                         >
                           <strong>Question {index + 1}</strong>
                           <button
-                            onClick={() => handleDeleteQuestion(index)}
+                            onClick={() => handleDeleteQuestion(index)} // Gọi hàm xóa với index
                             style={{
                               cursor: "pointer",
                               color: "red",
@@ -1009,9 +1144,9 @@ const ReadingPage = () => {
                               }}
                             >
                               <input
-                                type="radio"
+                                type="radio" // Sử dụng ID exercise + ID câu hỏi (hoặc index tạm) để tạo group name duy nhất
                                 name={`correctAnswer_Reading_${
-                                  selectedExercise.id
+                                  selectedExercise?.id
                                 }_${q.id || index}`}
                                 value={optionKey}
                                 checked={q.correctAnswer === optionKey}
@@ -1065,13 +1200,14 @@ const ReadingPage = () => {
                   <button
                     onClick={handleAddQuestion}
                     className="add-question-btn"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting} // Disable khi đang submit bất kỳ thao tác nào
                   >
                     + Add Question
                   </button>
                 </div>
               </div>
             ) : (
+              // Hiển thị hướng dẫn khi chưa chọn exercise
               !isLoadingExercises && (
                 <p
                   style={{
@@ -1088,6 +1224,7 @@ const ReadingPage = () => {
             )}
           </>
         ) : (
+          // Hiển thị hướng dẫn khi chưa chọn topic
           !isLoadingTopics && (
             <p
               style={{
@@ -1104,12 +1241,13 @@ const ReadingPage = () => {
         )}
       </div>
 
+      {/* Modals (Popup xác nhận/chỉnh sửa) */}
       {showEditTopicModal && topicToEdit && (
-        <div className="edit-topic-modal">
+        <div className="edit-topic-modal modal-overlay">
           {" "}
+          {/* Thêm overlay */}
           <div className="modal-content">
-            {" "}
-            <h3>Edit Topic Name</h3>{" "}
+            <h3>Edit Topic Name</h3>
             <input
               type="text"
               value={editingTopicName}
@@ -1117,9 +1255,8 @@ const ReadingPage = () => {
               placeholder="Enter new topic name..."
               disabled={isSubmitting}
               style={{ width: "100%", padding: "10px", marginBottom: "15px" }}
-            />{" "}
+            />
             <div>
-              {" "}
               <button
                 className="btn-modal-save"
                 onClick={handleEditTopicName}
@@ -1129,66 +1266,62 @@ const ReadingPage = () => {
                   editingTopicName.trim() === topicToEdit.topicName
                 }
               >
-                {" "}
-                {isSubmitting ? "Saving..." : "Save"}{" "}
-              </button>{" "}
+                {isSubmitting ? "Saving..." : "Save"}
+              </button>
               <button
                 className="btn-modal-cancel"
                 onClick={() => !isSubmitting && setShowEditTopicModal(false)}
                 disabled={isSubmitting}
               >
-                {" "}
-                Cancel{" "}
-              </button>{" "}
-            </div>{" "}
-          </div>{" "}
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
+
       {showConfirmDeleteTopic && topicToDelete && (
-        <div className="confirm-delete-modal">
+        <div className="confirm-delete-modal modal-overlay">
           {" "}
+          {/* Thêm overlay */}
           <div className="modal-content">
-            {" "}
-            <h3>Delete Topic "{topicToDelete.topicName}"?</h3>{" "}
+            <h3>Delete Topic "{topicToDelete.topicName}"?</h3>
             <p>
-              {" "}
               This will delete the topic and <strong>all its exercises</strong>.
-              This action cannot be undone.{" "}
-            </p>{" "}
+              This action cannot be undone.
+            </p>
             <div>
-              {" "}
               <button
                 onClick={confirmDeleteTopic}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >
-                {" "}
-                {isSubmitting ? "Deleting..." : "Yes, Delete"}{" "}
-              </button>{" "}
+                {isSubmitting ? "Deleting..." : "Yes, Delete"}
+              </button>
               <button
                 onClick={cancelDeleteTopic}
                 disabled={isSubmitting}
                 className="cancel-btn"
               >
-                {" "}
-                No, Cancel{" "}
-              </button>{" "}
-            </div>{" "}
-          </div>{" "}
+                No, Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
+
       {showEditExerciseModal && exerciseToEdit && selectedTopic && (
-        <div className="edit-topic-modal">
+        <div className="edit-topic-modal modal-overlay">
           {" "}
+          {/* Thêm overlay */}
           <div className="modal-content">
-            {" "}
-            <h3>Edit Exercise Title</h3>{" "}
+            <h3>Edit Exercise Title</h3>
             <p>
               <strong>Topic:</strong> {selectedTopic?.topicName}
-            </p>{" "}
+            </p>
             <p style={{ marginBottom: "10px" }}>
               <strong>Current Title:</strong> {exerciseToEdit?.title}
-            </p>{" "}
+            </p>
             <input
               type="text"
               value={editingExerciseTitle}
@@ -1196,9 +1329,8 @@ const ReadingPage = () => {
               placeholder="Enter new exercise title..."
               disabled={isSubmitting}
               style={{ width: "100%", padding: "10px", marginBottom: "15px" }}
-            />{" "}
+            />
             <div>
-              {" "}
               <button
                 className="btn-modal-save"
                 onClick={handleEditExerciseDisplayTitle}
@@ -1209,53 +1341,50 @@ const ReadingPage = () => {
                     editingExerciseTitle.trim() === exerciseToEdit.title)
                 }
               >
-                {" "}
-                {isSubmitting ? "Saving..." : "Save"}{" "}
-              </button>{" "}
+                {isSubmitting ? "Saving..." : "Save"}
+              </button>
               <button
                 className="btn-modal-cancel"
                 onClick={() => !isSubmitting && setShowEditExerciseModal(false)}
                 disabled={isSubmitting}
               >
                 Cancel
-              </button>{" "}
-            </div>{" "}
-          </div>{" "}
+              </button>
+            </div>
+          </div>
         </div>
       )}
+
       {showConfirmDeleteExercise && exerciseToDelete && selectedTopic && (
-        <div className="confirm-delete-modal">
+        <div className="confirm-delete-modal modal-overlay">
           {" "}
+          {/* Thêm overlay */}
           <div className="modal-content">
-            {" "}
-            <h3>Delete Exercise "{exerciseToDelete?.title}"?</h3>{" "}
+            <h3>Delete Exercise "{exerciseToDelete?.title}"?</h3>
             <p>
               <strong>Topic:</strong> {selectedTopic?.topicName}
-            </p>{" "}
+            </p>
             <p>
-              {" "}
               This will delete the exercise script and all its questions. This
-              action cannot be undone.{" "}
-            </p>{" "}
+              action cannot be undone.
+            </p>
             <div>
-              {" "}
               <button
                 onClick={confirmDeleteExercise}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >
-                {" "}
-                {isSubmitting ? "Deleting..." : "Yes, Delete"}{" "}
-              </button>{" "}
+                {isSubmitting ? "Deleting..." : "Yes, Delete"}
+              </button>
               <button
                 onClick={cancelDeleteExercise}
                 disabled={isSubmitting}
                 className="cancel-btn"
               >
                 No, Cancel
-              </button>{" "}
-            </div>{" "}
-          </div>{" "}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -4,7 +4,7 @@ import { ref, get, set, push, update } from "firebase/database";
 import { toast } from "react-toastify";
 
 const LESSONS_BASE_PATH = "Lessons/Levels";
-const USERS_BASE_PATH = "Users/MicrosoftUsers"; // Giả sử đường dẫn User giống nhau
+const USERS_BASE_PATH = "Users/MicrosoftUsers";
 
 // --- Topic Management ---
 export const fetchListeningTopics = async (level) => {
@@ -316,7 +316,7 @@ export const deleteListeningExercise = async (level, topicId, exerciseId) => {
       `${LESSONS_BASE_PATH}/${level}/Listening/Topics/${topicId}/Exercises/${exerciseId}`
     );
     await set(exerciseRef, null);
-    toast.success(`Deleted exercise (ID: ${exerciseId})`);
+    toast.success("Deleted exercise");
     return true;
   } catch (error) {
     console.error("Error deleting listening exercise:", error);

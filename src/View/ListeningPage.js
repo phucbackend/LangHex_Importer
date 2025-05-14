@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import "../css/speaking.css"; // Hoặc Listening.css
+import "../css/speaking.css";
 
 import {
   fetchListeningTopics,
@@ -466,100 +466,138 @@ const ListeningPage = () => {
       return;
     }
 
-    const exerciseIdForUserAnswers = selectedExercise.id;
-    const questionIdentifierForUserAnswers = indexToDelete;
+    const questionToDeleteLocally = localQuestions[indexToDelete];
 
-    const exerciseTitle = selectedExercise.title || "this exercise";
-    const questionTextPreview =
-      localQuestions[indexToDelete]?.questionText.substring(0, 30) + "..." ||
-      `Question ${indexToDelete + 1}`;
+    const isQuestionEffectivelyEmpty = (q) => {
+      if (!q) return true;
+      const questionTextEmpty = !q.questionText?.trim();
+      let optionsAllEmpty = true;
+      if (q.options && typeof q.options === "object") {
+        optionsAllEmpty = ["A", "B", "C", "D"].every(
+          (key) => !q.options[key]?.trim()
+        );
+      } else if (q.options === undefined || q.options === null) {
+        optionsAllEmpty = true;
+      } else {
+        optionsAllEmpty = false; // q.options is unusual type
+      }
+      const correctAnswerEmpty = !q.correctAnswer?.trim();
+      return questionTextEmpty && optionsAllEmpty && correctAnswerEmpty;
+    };
 
-    if (
-      window.confirm(
-        `Are you sure you want to delete "${questionTextPreview}" from "${exerciseTitle}"? This will update the database and attempt to delete related user listening answers. This action cannot be undone.`
-      )
-    ) {
+    const effectivelyEmpty = isQuestionEffectivelyEmpty(
+      questionToDeleteLocally
+    );
+
+    const performDeletionLogic = async () => {
       setIsSubmitting(true);
+      const previousCurrentEditingExerciseData = JSON.parse(
+        JSON.stringify(currentEditingExerciseData)
+      );
+
+      setCurrentEditingExerciseData((prev) => ({
+        ...prev,
+        questions: prev.questions.filter((_, i) => i !== indexToDelete),
+      }));
+
       try {
-        const latestExerciseDetail = await fetchListeningExerciseDetail(
-          upperLevelId,
-          selectedTopic.id,
-          selectedExercise.id
-        );
+        let successfullyProcessedDB = false;
+        let newPersistedState = null;
+        const exerciseIdForDBOperations = selectedExercise.id;
 
-        if (!latestExerciseDetail) {
-          toast.error(
-            "Failed to fetch the latest listening exercise data. Please try again."
-          );
-          setIsSubmitting(false);
-          return;
-        }
-
-        const currentQuestionsFromDB = latestExerciseDetail.questions || [];
         if (
-          indexToDelete < 0 ||
-          indexToDelete >= currentQuestionsFromDB.length
+          questionToDeleteLocally.id &&
+          !questionToDeleteLocally.id.startsWith("temp_listen_")
         ) {
-          toast.error(
-            "Listening question index is out of sync with the database. Please refresh and try again."
+          const latestExerciseDetailFromDB = await fetchListeningExerciseDetail(
+            upperLevelId,
+            selectedTopic.id,
+            exerciseIdForDBOperations
           );
-          setIsSubmitting(false);
-          await loadExerciseDetail(selectedExercise.id);
-          return;
+
+          if (!latestExerciseDetailFromDB) {
+            throw new Error(
+              "Failed to fetch current exercise data from database. Cannot safely delete question."
+            );
+          }
+
+          const questionsFromDB = latestExerciseDetailFromDB.questions || [];
+          const dbQuestionIndex = questionsFromDB.findIndex(
+            (q) => q.id === questionToDeleteLocally.id
+          );
+
+          if (dbQuestionIndex !== -1) {
+            const updatedQuestionsForDB = questionsFromDB.filter(
+              (_, i) => i !== dbQuestionIndex
+            );
+            const dataToSaveToDB = {
+              script: latestExerciseDetailFromDB.script,
+              questions: updatedQuestionsForDB,
+            };
+
+            const successUpdateExercise = await updateListeningExerciseDetail(
+              upperLevelId,
+              selectedTopic.id,
+              exerciseIdForDBOperations,
+              dataToSaveToDB
+            );
+
+            if (successUpdateExercise) {
+              toast.success(
+                "Listening question deleted successfully from the exercise."
+              );
+              newPersistedState = dataToSaveToDB;
+              successfullyProcessedDB = true;
+
+              const userAnswerDeletionResult =
+                await deleteUserListeningAnswersForQuestion(
+                  exerciseIdForDBOperations,
+                  dbQuestionIndex
+                );
+              if (userAnswerDeletionResult.success) {
+                console.log(
+                  `User listening answer deletion: success, ops: ${userAnswerDeletionResult.operations}`
+                );
+              } else {
+                console.error(
+                  "Failed to delete user listening answers:",
+                  userAnswerDeletionResult.message
+                );
+              }
+            } else {
+              throw new Error(
+                "Failed to save changes to the database after deleting question."
+              );
+            }
+          } else {
+            toast.info(
+              "Question not found in the database (perhaps already deleted). Removed locally."
+            );
+            newPersistedState = latestExerciseDetailFromDB;
+            successfullyProcessedDB = true;
+          }
+        } else {
+          if (
+            questionToDeleteLocally.id &&
+            questionToDeleteLocally.id.startsWith("temp_listen_")
+          ) {
+            toast.success("Unsaved listening question removed locally.");
+          } else if (effectivelyEmpty) {
+            // Handles empty non-temp questions that might not have an ID or other edge cases
+            toast.success("Empty listening question removed locally.");
+          }
+          successfullyProcessedDB = true;
         }
 
-        const newQuestions = currentQuestionsFromDB.filter(
-          (_, i) => i !== indexToDelete
-        );
-        const updatedExerciseDataForApi = {
-          script: latestExerciseDetail.script,
-          questions: newQuestions,
-        };
-
-        const successUpdateExercise = await updateListeningExerciseDetail(
-          upperLevelId,
-          selectedTopic.id,
-          selectedExercise.id,
-          updatedExerciseDataForApi
-        );
-
-        if (successUpdateExercise) {
-          setCurrentEditingExerciseData(updatedExerciseDataForApi);
+        if (successfullyProcessedDB && newPersistedState) {
           setInitialExerciseDetailStateForComparison(
-            JSON.stringify(updatedExerciseDataForApi)
+            JSON.stringify(newPersistedState)
           );
           setSelectedExercise((prev) => ({
             ...prev,
-            script: updatedExerciseDataForApi.script,
-            questions: newQuestions,
+            script: newPersistedState.script,
+            questions: newPersistedState.questions,
           }));
-          toast.success(
-            "Listening question deleted successfully from the exercise."
-          );
-
-          console.log(
-            `Proceeding to delete user listening answers for exerciseId: ${exerciseIdForUserAnswers}, questionIndex: ${questionIdentifierForUserAnswers}`
-          );
-          const userAnswerDeletionResult =
-            await deleteUserListeningAnswersForQuestion(
-              exerciseIdForUserAnswers,
-              questionIdentifierForUserAnswers
-            );
-
-          // BỎ TOAST.INFO TẠI ĐÂY
-          if (userAnswerDeletionResult.success) {
-            console.log(
-              `User listening answer deletion status: success, operations: ${userAnswerDeletionResult.operations}`
-            );
-          } else {
-            console.error(
-              "Failed to delete user listening answers:",
-              userAnswerDeletionResult.message
-            );
-            // Toast lỗi đã được hiển thị trong service nếu có
-          }
-        } else {
-          await loadExerciseDetail(selectedExercise.id);
         }
       } catch (error) {
         console.error(
@@ -567,13 +605,37 @@ const ListeningPage = () => {
           error
         );
         toast.error(
-          "An unexpected error occurred while deleting the listening question."
+          `An error occurred: ${error.message}. Reverting local changes.`
         );
-        if (selectedExercise && selectedExercise.id) {
+        setCurrentEditingExerciseData(previousCurrentEditingExerciseData);
+
+        if (
+          selectedExercise &&
+          selectedExercise.id &&
+          questionToDeleteLocally.id &&
+          !questionToDeleteLocally.id.startsWith("temp_listen_")
+        ) {
           await loadExerciseDetail(selectedExercise.id);
         }
       } finally {
         setIsSubmitting(false);
+      }
+    };
+
+    if (effectivelyEmpty) {
+      await performDeletionLogic();
+    } else {
+      const exerciseTitle = selectedExercise.title || "this exercise";
+      const questionTextPreview =
+        questionToDeleteLocally?.questionText.substring(0, 30) + "..." ||
+        `Question ${indexToDelete + 1}`;
+
+      if (
+        window.confirm(
+          `Are you sure you want to delete "${questionTextPreview}" from "${exerciseTitle}"? This will update the database if the question exists there and attempt to delete related user listening answers. This action cannot be undone.`
+        )
+      ) {
+        await performDeletionLogic();
       }
     }
   };
@@ -614,22 +676,43 @@ const ListeningPage = () => {
     }
 
     setIsSubmitting(true);
+    const dataToSave = {
+      script: currentEditingExerciseData.script,
+      // For questions, send them as is. The service layer should handle ID assignment for new questions if necessary.
+      // If questions have temp IDs, the service needs to know how to replace them or if Firebase structure handles it.
+      // For now, sending current IDs (temp or persistent).
+      questions: currentEditingExerciseData.questions,
+    };
+
     const success = await updateListeningExerciseDetail(
       upperLevelId,
       selectedTopic.id,
       selectedExercise.id,
-      currentEditingExerciseData
+      dataToSave
     );
     if (success) {
-      setInitialExerciseDetailStateForComparison(
-        JSON.stringify(currentEditingExerciseData)
+      const updatedExerciseDetail = await fetchListeningExerciseDetail(
+        upperLevelId,
+        selectedTopic.id,
+        selectedExercise.id
       );
-      setSelectedExercise((prev) => ({
-        ...prev,
-        script: currentEditingExerciseData.script,
-        questions: currentEditingExerciseData.questions,
-      }));
-      toast.success("Listening exercise changes saved successfully!");
+      if (updatedExerciseDetail) {
+        setSelectedExercise(updatedExerciseDetail);
+        const editableData = {
+          script: updatedExerciseDetail.script,
+          questions: updatedExerciseDetail.questions,
+        };
+        setCurrentEditingExerciseData(editableData);
+        setInitialExerciseDetailStateForComparison(
+          JSON.stringify(editableData)
+        );
+        toast.success("Listening exercise changes saved successfully!");
+      } else {
+        toast.error(
+          "Saved, but failed to reload the updated exercise data. Please refresh manually if needed."
+        );
+        setInitialExerciseDetailStateForComparison(JSON.stringify(dataToSave)); // Fallback
+      }
     }
     setIsSubmitting(false);
   };
@@ -1116,10 +1199,8 @@ const ListeningPage = () => {
 
       {showEditTopicModal && topicToEdit && (
         <div className="edit-topic-modal">
-          {" "}
           <div className="modal-content">
-            {" "}
-            <h3>Edit Listening Topic Name</h3>{" "}
+            <h3>Edit Listening Topic Name</h3>
             <input
               type="text"
               value={editingTopicName}
@@ -1127,9 +1208,8 @@ const ListeningPage = () => {
               placeholder="Enter new topic name..."
               disabled={isSubmitting}
               style={{ width: "100%", padding: "10px", marginBottom: "15px" }}
-            />{" "}
+            />
             <div>
-              {" "}
               <button
                 className="btn-modal-save"
                 onClick={handleEditTopicName}
@@ -1139,66 +1219,56 @@ const ListeningPage = () => {
                   editingTopicName.trim() === topicToEdit.topicName
                 }
               >
-                {" "}
-                {isSubmitting ? "Saving..." : "Save"}{" "}
-              </button>{" "}
+                {isSubmitting ? "Saving..." : "Save"}
+              </button>
               <button
                 className="btn-modal-cancel"
                 onClick={() => !isSubmitting && setShowEditTopicModal(false)}
                 disabled={isSubmitting}
               >
-                {" "}
-                Cancel{" "}
-              </button>{" "}
-            </div>{" "}
-          </div>{" "}
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {showConfirmDeleteTopic && topicToDelete && (
         <div className="confirm-delete-modal">
-          {" "}
           <div className="modal-content">
-            {" "}
-            <h3>Delete Topic "{topicToDelete.topicName}"?</h3>{" "}
+            <h3>Delete Topic "{topicToDelete.topicName}"?</h3>
             <p>
-              {" "}
               This will delete the topic and <strong>all its exercises</strong>.
-              This action cannot be undone.{" "}
-            </p>{" "}
+              This action cannot be undone.
+            </p>
             <div>
-              {" "}
               <button
                 onClick={confirmDeleteTopic}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >
-                {" "}
-                {isSubmitting ? "Deleting..." : "Yes, Delete"}{" "}
-              </button>{" "}
+                {isSubmitting ? "Deleting..." : "Yes, Delete"}
+              </button>
               <button
                 onClick={cancelDeleteTopic}
                 disabled={isSubmitting}
                 className="cancel-btn"
               >
-                {" "}
-                No, Cancel{" "}
-              </button>{" "}
-            </div>{" "}
-          </div>{" "}
+                No, Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {showEditExerciseModal && exerciseToEdit && selectedTopic && (
         <div className="edit-topic-modal">
-          {" "}
           <div className="modal-content">
-            {" "}
-            <h3>Edit Listening Exercise Title</h3>{" "}
+            <h3>Edit Listening Exercise Title</h3>
             <p>
               <strong>Topic:</strong> {selectedTopic?.topicName}
-            </p>{" "}
+            </p>
             <p style={{ marginBottom: "10px" }}>
               <strong>Current Title:</strong> {exerciseToEdit?.title}
-            </p>{" "}
+            </p>
             <input
               type="text"
               value={editingExerciseTitle}
@@ -1206,9 +1276,8 @@ const ListeningPage = () => {
               placeholder="Enter new exercise title..."
               disabled={isSubmitting}
               style={{ width: "100%", padding: "10px", marginBottom: "15px" }}
-            />{" "}
+            />
             <div>
-              {" "}
               <button
                 className="btn-modal-save"
                 onClick={handleEditExerciseDisplayTitle}
@@ -1219,53 +1288,47 @@ const ListeningPage = () => {
                     editingExerciseTitle.trim() === exerciseToEdit.title)
                 }
               >
-                {" "}
-                {isSubmitting ? "Saving..." : "Save"}{" "}
-              </button>{" "}
+                {isSubmitting ? "Saving..." : "Save"}
+              </button>
               <button
                 className="btn-modal-cancel"
                 onClick={() => !isSubmitting && setShowEditExerciseModal(false)}
                 disabled={isSubmitting}
               >
                 Cancel
-              </button>{" "}
-            </div>{" "}
-          </div>{" "}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {showConfirmDeleteExercise && exerciseToDelete && selectedTopic && (
         <div className="confirm-delete-modal">
-          {" "}
           <div className="modal-content">
-            {" "}
-            <h3>Delete Exercise "{exerciseToDelete?.title}"?</h3>{" "}
+            <h3>Delete Exercise "{exerciseToDelete?.title}"?</h3>
             <p>
               <strong>Topic:</strong> {selectedTopic?.topicName}
-            </p>{" "}
+            </p>
             <p>
-              {" "}
               This will delete the exercise script/audio and all its questions.
-              This action cannot be undone.{" "}
-            </p>{" "}
+              This action cannot be undone.
+            </p>
             <div>
-              {" "}
               <button
                 onClick={confirmDeleteExercise}
                 disabled={isSubmitting}
                 className="confirm-btn"
               >
-                {" "}
-                {isSubmitting ? "Deleting..." : "Yes, Delete"}{" "}
-              </button>{" "}
+                {isSubmitting ? "Deleting..." : "Yes, Delete"}
+              </button>
               <button
                 onClick={cancelDeleteExercise}
                 disabled={isSubmitting}
                 className="cancel-btn"
               >
                 No, Cancel
-              </button>{" "}
-            </div>{" "}
-          </div>{" "}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

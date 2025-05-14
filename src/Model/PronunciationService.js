@@ -1,16 +1,15 @@
 // src/Model/PronunciationService.js
-import { database } from "../firebaseConfig"; // Đảm bảo đường dẫn này chính xác
+import { database } from "../firebaseConfig";
 import { ref, get, set, push, child } from "firebase/database";
 import { toast } from "react-toastify";
 
-const PRONUNCIATION_TYPE = "Pronunciation"; // Khác với SPEAKING_TYPE của Q&A
+const PRONUNCIATION_TYPE = "Pronunciation";
 
 // Helper function to find a topic by its topicName and return its ID and data
-// Chức năng này tương tự như bên SpeakingService, chỉ khác đường dẫn
 const findPronunciationTopicByTitle = async (level, titleToFind) => {
   const topicsRef = ref(
     database,
-    `Lessons/Levels/${level}/Speaking/${PRONUNCIATION_TYPE}/Topics` // Đường dẫn mới
+    `Lessons/Levels/${level}/Speaking/${PRONUNCIATION_TYPE}/Topics`
   );
   const snapshot = await get(topicsRef);
   if (snapshot.exists()) {

@@ -1,7 +1,7 @@
 // src/pages/PronunciationPage.js
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import "../css/speaking.css"; // Sử dụng chung CSS hoặc tạo file mới
+import "../css/speaking.css";
 import {
   fetchPronunciationTopics,
   addPronunciationTopic,
@@ -10,7 +10,7 @@ import {
   addScriptToTopic,
   editScriptInTopic,
   deleteScriptFromTopic,
-} from "../Model/PronunciationService"; // Import từ service mới
+} from "../Model/PronunciationService";
 
 const PronunciationPage = () => {
   const { levelId } = useParams();

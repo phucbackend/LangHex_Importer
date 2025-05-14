@@ -2,13 +2,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import "../css/speaking.css"; // Assuming shared CSS
+import "../css/speaking.css";
 
 import {
   fetchWritingTopics,
   addWritingTopic,
-  editWritingTopicName, // Updated to edit display name, not key
-  deleteWritingTopic, // Deletes by ID
+  editWritingTopicName,
+  deleteWritingTopic,
   fetchWritingExercisesForTopic,
   fetchWritingExerciseDetail,
   addWritingExercise,
