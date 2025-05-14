@@ -102,7 +102,7 @@ const ReadingPage = () => {
       setSelectedExercise(null);
       setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
       setInitialExerciseDetailStateForComparison(null);
-      return;
+      return []; // Return empty array
     }
     setIsLoadingExercises(true);
     setSelectedExercise(null);
@@ -112,8 +112,9 @@ const ReadingPage = () => {
       upperLevelId,
       selectedTopic.id
     );
-    setTopicExercises(fetchedExercises);
+    setTopicExercises(fetchedExercises); // Update state for list rendering
     setIsLoadingExercises(false);
+    return fetchedExercises; // Return the fetched exercises
   }, [upperLevelId, selectedTopic, initialEmptyExerciseDataForDetail]);
 
   const loadExerciseDetail = useCallback(
@@ -353,22 +354,57 @@ const ReadingPage = () => {
       toast.error("No topic selected for this exercise.");
       return;
     }
+
     setIsSubmitting(true);
     const success = await editReadingExerciseDisplayTitle(
       upperLevelId,
       selectedTopic.id,
-      exerciseToEdit.id,
+      exerciseToEdit.id, // ID of the exercise whose title is being changed
       trimmedNewTitle
     );
-    setIsSubmitting(false); // Kết thúc submit sau khi gọi API
+
     if (success) {
-      setShowEditExerciseModal(false); // Đóng modal
-      await loadExercisesForSelectedTopic(); // Tải lại danh sách exercises // Cập nhật selectedExercise nếu đang chọn exercise vừa sửa
-      if (selectedExercise && selectedExercise.id === exerciseToEdit.id) {
-        setSelectedExercise((prev) => ({ ...prev, title: trimmedNewTitle }));
+      setShowEditExerciseModal(false);
+      const editedExerciseId = exerciseToEdit.id;
+
+      let preservedCurrentData = null;
+      let preservedInitialData = null;
+      let wasSelectedExerciseBeingEdited = false;
+
+      // Check if the exercise whose title was changed is the one currently selected and being detailed
+      if (selectedExercise && selectedExercise.id === editedExerciseId) {
+        wasSelectedExerciseBeingEdited = true;
+        preservedCurrentData = currentEditingExerciseData; // Capture current script/questions
+        preservedInitialData = initialExerciseDetailStateForComparison; // Capture its comparison baseline
       }
-      setExerciseToEdit(null); // Reset state exercise đang sửa
+
+      // Reload the list of exercises for the topic.
+      // This function will internally reset selectedExercise, currentEditingExerciseData, etc.,
+      // but it will return the updated list.
+      const updatedExercisesList = await loadExercisesForSelectedTopic();
+
+      if (wasSelectedExerciseBeingEdited) {
+        // If we were editing the details of the exercise that was just renamed:
+        // Find it in the newly fetched list.
+        const reloadedExerciseInList = updatedExercisesList.find(
+          (ex) => ex.id === editedExerciseId
+        );
+
+        if (reloadedExerciseInList) {
+          // Found it. Now, re-select it (it will have the new title from the DB via updatedExercisesList)
+          // and restore the script/question editing state.
+          setSelectedExercise(reloadedExerciseInList);
+          setCurrentEditingExerciseData(preservedCurrentData);
+          setInitialExerciseDetailStateForComparison(preservedInitialData);
+        } else {
+          // The exercise is somehow not in the list after renaming.
+          // selectedExercise remains null (as set by loadExercisesForSelectedTopic),
+          // and currentEditingExerciseData remains empty.
+        }
+      }
+      setExerciseToEdit(null);
     }
+    setIsSubmitting(false);
   };
 
   const handleDeleteExercise = (exercise) => {

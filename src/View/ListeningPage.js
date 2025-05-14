@@ -96,18 +96,22 @@ const ListeningPage = () => {
       setSelectedExercise(null);
       setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
       setInitialExerciseDetailStateForComparison(null);
-      return;
+      return []; // Return empty array if no topic selected
     }
     setIsLoadingExercises(true);
-    setSelectedExercise(null); // Reset selected exercise when loading new list
+    // These resets are important for when genuinely switching topics or deselecting.
+    // We will handle preserving data in the calling function if needed.
+    setSelectedExercise(null);
     setCurrentEditingExerciseData(initialEmptyExerciseDataForDetail);
     setInitialExerciseDetailStateForComparison(null);
+
     const fetchedExercises = await fetchListeningExercisesForTopic(
       upperLevelId,
       selectedTopic.id
     );
-    setTopicExercises(fetchedExercises);
+    setTopicExercises(fetchedExercises); // Update the state for the list rendering
     setIsLoadingExercises(false);
+    return fetchedExercises; // Return the fetched exercises
   }, [upperLevelId, selectedTopic, initialEmptyExerciseDataForDetail]);
 
   const loadExerciseDetail = useCallback(
@@ -343,22 +347,62 @@ const ListeningPage = () => {
       toast.error("No topic selected for this exercise.");
       return;
     }
+
     setIsSubmitting(true);
     const success = await editListeningExerciseDisplayTitle(
       upperLevelId,
       selectedTopic.id,
-      exerciseToEdit.id,
+      exerciseToEdit.id, // ID of the exercise whose title is being changed
       trimmedNewTitle
     );
-    setIsSubmitting(false);
+
     if (success) {
       setShowEditExerciseModal(false);
-      await loadExercisesForSelectedTopic();
-      if (selectedExercise && selectedExercise.id === exerciseToEdit.id) {
-        setSelectedExercise((prev) => ({ ...prev, title: trimmedNewTitle }));
+      const editedExerciseId = exerciseToEdit.id;
+
+      let preservedCurrentData = null;
+      let preservedInitialData = null;
+      let wasSelectedExerciseBeingEdited = false;
+
+      // Check if the exercise whose title was changed is the one currently selected and being detailed
+      if (selectedExercise && selectedExercise.id === editedExerciseId) {
+        wasSelectedExerciseBeingEdited = true;
+        preservedCurrentData = currentEditingExerciseData; // Capture current script/questions
+        preservedInitialData = initialExerciseDetailStateForComparison; // Capture its comparison baseline
       }
-      setExerciseToEdit(null);
+
+      // Reload the list of exercises for the topic.
+      // This function will internally reset selectedExercise, currentEditingExerciseData, etc.,
+      // but it will return the updated list.
+      const updatedExercisesList = await loadExercisesForSelectedTopic();
+
+      if (wasSelectedExerciseBeingEdited) {
+        // If we were editing the details of the exercise that was just renamed:
+        // Find it in the newly fetched list.
+        const reloadedExerciseInList = updatedExercisesList.find(
+          (ex) => ex.id === editedExerciseId
+        );
+
+        if (reloadedExerciseInList) {
+          // Found it. Now, re-select it (it will have the new title from the DB via updatedExercisesList)
+          // and restore the script/question editing state.
+          setSelectedExercise(reloadedExerciseInList);
+          setCurrentEditingExerciseData(preservedCurrentData);
+          setInitialExerciseDetailStateForComparison(preservedInitialData);
+        } else {
+          // The exercise is somehow not in the list after renaming (e.g., deleted by another user concurrently).
+          // In this case, selectedExercise remains null (as set by loadExercisesForSelectedTopic),
+          // and currentEditingExerciseData remains empty, which is the correct state.
+          // toast.info("The edited exercise was not found in the refreshed list.");
+        }
+      }
+      // If a different exercise was selected, or no exercise was selected,
+      // the reset performed by loadExercisesForSelectedTopic is appropriate,
+      // and the list in the sidebar is now up-to-date.
+
+      setExerciseToEdit(null); // Clear the exercise-to-edit modal state
     }
+    setIsSubmitting(false);
   };
 
   const handleDeleteExercise = (exercise) => {
