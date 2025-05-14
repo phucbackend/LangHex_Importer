@@ -129,7 +129,7 @@ export const deleteReadingTopic = async (level, topicId) => {
       `${LESSONS_BASE_PATH}/${level}/Reading/Topics/${topicId}`
     );
     await set(topicRef, null);
-    toast.success(`Deleted topic (ID: ${topicId}) and its exercises.`);
+    toast.success(`Deleted topic and its exercises.`);
     return true;
   } catch (error) {
     console.error("Error deleting reading topic:", error);
@@ -317,7 +317,7 @@ export const deleteReadingExercise = async (level, topicId, exerciseId) => {
       `${LESSONS_BASE_PATH}/${level}/Reading/Topics/${topicId}/Exercises/${exerciseId}`
     );
     await set(exerciseRef, null);
-    toast.success(`Deleted exercise (ID: ${exerciseId})`);
+    toast.success("Deleted exercise");
     return true;
   } catch (error) {
     console.error("Error deleting reading exercise:", error);

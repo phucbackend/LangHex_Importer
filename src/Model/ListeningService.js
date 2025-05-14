@@ -128,7 +128,7 @@ export const deleteListeningTopic = async (level, topicId) => {
       `${LESSONS_BASE_PATH}/${level}/Listening/Topics/${topicId}`
     );
     await set(topicRef, null);
-    toast.success(`Deleted topic (ID: ${topicId}) and its exercises.`);
+    toast.success(`Deleted topic and its exercises.`);
     return true;
   } catch (error) {
     console.error("Error deleting listening topic:", error);

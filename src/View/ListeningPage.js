@@ -1163,7 +1163,7 @@ const ListeningPage = () => {
             <p>
               {" "}
               This will delete the topic and <strong>all its exercises</strong>.
-              (ID: {topicToDelete.id}) This action cannot be undone.{" "}
+              This action cannot be undone.{" "}
             </p>{" "}
             <div>
               {" "}
@@ -1245,7 +1245,7 @@ const ListeningPage = () => {
             <p>
               {" "}
               This will delete the exercise script/audio and all its questions.
-              (ID: {exerciseToDelete?.id}) This action cannot be undone.{" "}
+              This action cannot be undone.{" "}
             </p>{" "}
             <div>
               {" "}

@@ -131,7 +131,7 @@ export const deleteWritingTopic = async (level, topicId) => {
       `${BASE_PATH}/${level}/Writing/Topics/${topicId}`
     );
     await set(topicRef, null);
-    toast.success(`Deleted topic (ID: ${topicId})`);
+    toast.success("Deleted topic");
     return true;
   } catch (error) {
     console.error("Error deleting writing topic:", error);

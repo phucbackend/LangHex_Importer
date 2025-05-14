@@ -719,7 +719,7 @@ const WritingPage = () => {
               This will delete the topic and <strong>
                 all its exercises
               </strong>{" "}
-              (ID: {topicToDelete.id}). This action cannot be undone.{" "}
+              . This action cannot be undone.{" "}
             </p>
             <div style={{ marginTop: "15px" }}>
               <button
@@ -785,8 +785,7 @@ const WritingPage = () => {
             <p>Topic: {selectedTopic?.topicName}</p>
             <p>
               {" "}
-              This will delete the exercise (ID: {exerciseToDelete?.id}). This
-              action cannot be undone.{" "}
+              This will delete the exercise. This action cannot be undone.{" "}
             </p>
             <div style={{ marginTop: "15px" }}>
               <button
